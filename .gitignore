@@ -1,19 +1,23 @@
+# Environment
+.env
+.env.*
+!.env.example
+
 # Python
-# ----------------------------
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.egg-info/
-
 venv/
 .venv/
+*.egg-info/
 
-
-
-
-
-
-
-
+# Data (never commit raw CSVs)
+data/movielens/*.csv
 data/ml-20m/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
