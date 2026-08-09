@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.database import engine
+from app.core.error_handlers import register_exception_handlers
+from app.api.v1 import genres
 from sqlalchemy import text
 import logging
 
@@ -27,19 +29,13 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    register_exception_handlers(app)
+    app.include_router(genres.router, prefix="/api/v1")
 
     return app
 
 
 app = create_app()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 @app.get("/")

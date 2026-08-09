@@ -6,9 +6,9 @@ from app.db.database import get_db
 from app.schemas.genre import GenreResponse, GenreCreate
 from app.services import genre_service
 
-router = APIRouter(prefix="/genres", tags=["genres"])
+router = APIRouter(prefix="/genres", tags=["Genres"])
 
-@router.get("/", response_model=[GenreResponse])
+@router.get("/", response_model=list[GenreResponse])
 def list_genres(db: Session = Depends(get_db)):
     return genre_service.get_all_genres(db)
 
