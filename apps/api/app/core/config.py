@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     TMDB_API_KEY : str
     TMDB_BASE_URL : str = "https://api.themoviedb.org/3"
-    TMDB_IMAGE_BASE_URL :str ="https://image.tmdb.org/t/p"
+    TMDB_IMAGE_BASE_URL :str ="https://image.tmdb.org/t/p/w500"
 
 
     ALLOWED_ORIGINS : List[str] = ["http://localhost:3000"]
