@@ -197,3 +197,15 @@ class UserCredentials(Base):
     updated_at = Column(DateTime, default=datetime.now, nullable= False, onupdate=datetime.now)
 
     user = relationship("User", back_populates="credentials")
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token_hash = Column(String(255), nullable=False, unique=True)
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+    user = relationship("User")
