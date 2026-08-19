@@ -1,69 +1,206 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+
+type FieldProps = {
+  label: string;
+  type: string;
+  name: string;
+  autoComplete?: string;
+};
+
+function Field({ label, type, name, autoComplete }: FieldProps) {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <label className="block">
+      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-ash">
+        {label}
+      </span>
+
+      <input
+        type={type}
+        name={name}
+        required
+        autoComplete={autoComplete}
+        className="mt-2 w-full border-0 border-b border-ink/15 bg-transparent py-2.5 font-sans text-[15px] text-ink outline-none transition-colors placeholder:text-ash/50 focus:border-signal"
+      />
+    </label>
+  );
+}
+
+export default function AuthPage() {
+  const [mode, setMode] = useState<"login" | "register">("login");
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    // Connect to auth API here.
+  };
+
+  return (
+    <main className="min-h-screen bg-paper">
+      <div className="mx-auto flex min-h-screen max-w-6xl">
+        {/* Left */}
+        <section className="hidden flex-1 flex-col justify-between px-12 py-12 lg:flex">
+          <div>
+            <span className="font-mono text-sm tracking-[0.08em] text-ink">
+              MOVIES
+            </span>
+          </div>
+
+          <div className="max-w-lg">
+            <p className="mb-4 font-mono text-xs uppercase tracking-[0.12em] text-signal">
+              Your watchlist, ratings & recommendations
+            </p>
+
+            <h1 className="font-display text-6xl leading-[0.95] text-ink">
+              Find your
+              <br />
+              next favorite.
+            </h1>
+
+            <p className="mt-6 max-w-md font-sans text-[15px] leading-7 text-ash">
+              Keep track of the movies you love and discover something new
+              based on your taste.
+            </p>
+          </div>
+
+          <p className="font-mono text-[11px] text-ash">
+            Discover · Rate · Watch
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+        </section>
+
+        {/* Form */}
+        <section className="flex w-full items-center justify-center px-6 py-12 sm:px-10 lg:w-[440px] lg:border-l lg:border-ink/10 lg:px-14">
+          <div className="w-full max-w-sm">
+            <div className="mb-10 lg:hidden">
+              <span className="font-mono text-sm tracking-[0.08em] text-ink">
+                MOVIES
+              </span>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="font-display text-3xl text-ink">
+                {mode === "login" ? "Welcome back" : "Create your account"}
+              </h2>
+
+              <p className="mt-2 font-sans text-sm text-ash">
+                {mode === "login"
+                  ? "Sign in to continue."
+                  : "Start building your movie profile."}
+              </p>
+            </div>
+
+            <div className="mb-9 flex gap-6 border-b border-ink/10">
+              <button
+                type="button"
+                onClick={() => setMode("login")}
+                className={`relative pb-3 font-mono text-xs uppercase tracking-[0.1em] transition-colors ${
+                  mode === "login"
+                    ? "text-ink"
+                    : "text-ash hover:text-ink"
+                }`}
+              >
+                Log in
+
+                {mode === "login" && (
+                  <span className="absolute inset-x-0 -bottom-px h-px bg-signal" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMode("register")}
+                className={`relative pb-3 font-mono text-xs uppercase tracking-[0.1em] transition-colors ${
+                  mode === "register"
+                    ? "text-ink"
+                    : "text-ash hover:text-ink"
+                }`}
+              >
+                Sign up
+
+                {mode === "register" && (
+                  <span className="absolute inset-x-0 -bottom-px h-px bg-signal" />
+                )}
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-7">
+              {mode === "register" && (
+                <Field
+                  label="Name"
+                  type="text"
+                  name="name"
+                  autoComplete="name"
+                />
+              )}
+
+              <Field
+                label="Email"
+                type="email"
+                name="email"
+                autoComplete="email"
+              />
+
+              <Field
+                label="Password"
+                type="password"
+                name="password"
+                autoComplete={
+                  mode === "login" ? "current-password" : "new-password"
+                }
+              />
+
+              {mode === "login" && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    className="font-sans text-sm text-ash underline decoration-ink/20 underline-offset-4 transition-colors hover:text-signal"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-ink py-3.5 font-sans text-sm font-medium text-paper transition-colors hover:bg-signal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+              >
+                {mode === "login" ? "Log in" : "Create account"}
+              </button>
+            </form>
+
+            <p className="mt-7 font-sans text-sm text-ash">
+              {mode === "login" ? (
+                <>
+                  Don't have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setMode("register")}
+                    className="text-ink underline decoration-ink/20 underline-offset-4 hover:text-signal"
+                  >
+                    Sign up
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setMode("login")}
+                    className="text-ink underline decoration-ink/20 underline-offset-4 hover:text-signal"
+                  >
+                    Log in
+                  </button>
+                </>
+              )}
+            </p>
+
+            <p className="mt-12 font-mono text-[10px] leading-relaxed text-ash">
+              By continuing, you agree to the Terms and Privacy Policy.
+            </p>
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }
