@@ -3,21 +3,21 @@ import { User, SignupPayload, LoginPayload, TokenResponse } from "@/types/user";
 
 export const authApi = {
     signup : (payload : SignupPayload) =>{
-        apifetch<User>("/auth/signup", {
+        return apifetch<User>("/auth/signup", {
             method : "POST",
             body : JSON.stringify(payload)
         })
     },
 
     login : (payload : LoginPayload)=>{
-        apifetch<TokenResponse>("/auth/login", {
+        return apifetch<TokenResponse>("/auth/login", {
             method : "POST",
             body : JSON.stringify(payload)
         })
     },
 
     refresh : () =>{
-        apifetch<TokenResponse>("/auth/refresh", {
+        return apifetch<TokenResponse>("/auth/refresh", {
             method : "POST"
         })
     },
@@ -29,7 +29,7 @@ export const authApi = {
     },
 
     me : (accessToken : string)=>{
-        apifetch<User>("/auth/me", {}, accessToken)
+        return apifetch<User>("/auth/me", {}, accessToken)
     } 
 
 }

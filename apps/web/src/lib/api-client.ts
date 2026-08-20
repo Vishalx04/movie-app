@@ -14,7 +14,7 @@ export async function apifetch<T>(
         headers.set("Authorization", `Bearer ${accessToken}`);
     }
 
-    const response = await fetch(`${API_BASE_URL} ${path}`,
+    const response = await fetch(`${API_BASE_URL}${path}`,
         {
             ...options,
             headers,
