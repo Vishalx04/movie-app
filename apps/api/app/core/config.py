@@ -1,6 +1,8 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import List
 
+ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 class Settings(BaseSettings):
     APP_ENV: str = "development"
@@ -13,7 +15,6 @@ class Settings(BaseSettings):
     )
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     TMDB_API_KEY: str
     TMDB_BASE_URL: str = "https://api.themoviedb.org/3"
@@ -27,7 +28,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
 
     class Config:
-        env_file = ".env"
+        env_file = ENV_FILE
         env_file_encoding = "utf-8"
         class_sensitive = "True"
 

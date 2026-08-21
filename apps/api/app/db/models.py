@@ -50,7 +50,7 @@ class Movie(Base):
 
     id = Column(Integer, primary_key=True)
     tmdb_id = Column(String(50), nullable=False, unique=True)
-    imdb_id = Column(String(50), nullable=False, unique=True)
+    imdb_id = Column(String(50), nullable=True, unique=True)
     movielens_id = Column(Integer, nullable=True, unique=True)
 
     title = Column(String(255), nullable=False)
