@@ -174,33 +174,42 @@ class MoviePlatform(Base):
     platform = relationship("Platform")
 
 
+class UserRole(str, enum.Enum):
+    user = "user"
+    admin = "admin"
+
 
 class User(Base):
     __tablename__ = "users"
-    id=  Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True)
     email = Column(String(255), nullable=False, unique=True)
-    username = Column(String(100), nullable=False,unique=True)
+    username = Column(String(100), nullable=False, unique=True)
     name = Column(String(255), nullable=True)
-
+    role = Column(
+        Enum(UserRole, name="userrole"), nullable=False, default=UserRole.user
+    )
     created_at = Column(DateTime, default=datetime.now, nullable=False)
-    updated_at = Column(DateTime, nullable= False, default=datetime.now, onupdate=datetime.now)
-
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.now, onupdate=datetime.now
+    )
     credentials = relationship("UserCredentials", back_populates="user", uselist=False)
+
 
 class UserCredentials(Base):
     __tablename__ = "user_credentials"
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
     password_hash = Column(String(255), nullable=False)
-
     created_at = Column(DateTime, default=datetime.now, nullable=False)
-    updated_at = Column(DateTime, default=datetime.now, nullable= False, onupdate=datetime.now)
+    updated_at = Column(
+        DateTime, default=datetime.now, nullable=False, onupdate=datetime.now
+    )
 
     user = relationship("User", back_populates="credentials")
 
+
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
-
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     token_hash = Column(String(255), nullable=False, unique=True)
