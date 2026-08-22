@@ -84,7 +84,24 @@ class Movie(Base):
     genres = relationship("Genre", secondary=movie_genres, backref="movies")
     cast = relationship("MovieCast", back_populates="movie")
     platforms = relationship("MoviePlatform", back_populates="movie")
+    ratings = relationship("Rating", back_populates="movie")
 
+class Rating(Base):
+    __tablename__ = "ratings"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id =Column(Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    rating =Column(Float, nullable=False)
+    rated_at =Column(DateTime, default=datetime.now, nullable=False)
+    updated_at =Column(DateTime, default= datetime.now, onupdate=datetime.now, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "movie_id", name="uq_user_movie_rating"),
+    )
+
+    user = relationship("User", back_populates="ratings")
+    movie = relationship("Movie", back_populates="ratings")
 
 class Person(Base):
     __tablename__ = "people"
@@ -188,11 +205,14 @@ class User(Base):
     role = Column(
         Enum(UserRole, name="userrole"), nullable=False, default=UserRole.user
     )
+    is_seed_user = Column(Boolean, nullable=False, default=False)
+
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     updated_at = Column(
         DateTime, nullable=False, default=datetime.now, onupdate=datetime.now
     )
     credentials = relationship("UserCredentials", back_populates="user", uselist=False)
+    ratings = relationship("Rating", back_populates="user")
 
 
 class UserCredentials(Base):

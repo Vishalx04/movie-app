@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    TMDB_API_KEY: str
+    TMDB_READ_ACCESS_TOKEN: str
     TMDB_BASE_URL: str = "https://api.themoviedb.org/3"
     TMDB_IMAGE_BASE_URL: str = "https://image.tmdb.org/t/p/w500"
 

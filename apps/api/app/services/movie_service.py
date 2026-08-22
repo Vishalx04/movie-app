@@ -15,6 +15,8 @@ def _attach_url(movie: Movie):
     movie.poster_url = _build_image_url(movie.poster_path)
     return movie
 
+def _enriched_only(query):
+    return query.filter(Movie.poster_path.isnot(None), Movie.poster_path != "")
 
 def get_all_movies(
     db: Session,
@@ -24,11 +26,11 @@ def get_all_movies(
     genre_id: int | None = None,
 ) -> list[Movie]:
 
-    query = db.query(Movie)
+    query = _enriched_only(db.query(Movie))
     if q:
         query = query.filter(Movie.title.ilike(f"{q}%"))
 
-    if genre_id is not None:
+    if genre_id:
         query = query.join(Movie.genres).filter(Genre.id == genre_id)
 
     movies = query.offset(skip).limit(limit).all()
@@ -37,12 +39,12 @@ def get_all_movies(
 
 
 def get_movie_by_id(db: Session, movie_id: int) -> Movie | None:
-    movie = (
+    query = _enriched_only(
         db.query(Movie)
         .options(joinedload(Movie.genres))
         .filter(Movie.id == movie_id)
-        .first()
     )
+    movie = query.first()
 
     if movie:
         _attach_url(movie)

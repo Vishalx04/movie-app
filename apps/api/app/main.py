@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.database import engine
 from app.core.error_handlers import register_exception_handlers
-from app.api.v1 import genres, movies, auth
+from app.api.v1 import genres, movies, auth, ratings
 from sqlalchemy import text
 import logging
 
@@ -33,7 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(genres.router, prefix="/api/v1")
     app.include_router(movies.router, prefix="/api/v1")
     app.include_router(auth.router, prefix="/api/v1")
-
+    app.include_router(ratings.router, prefix="/api/v1")
     return app
 
 
