@@ -85,6 +85,7 @@ class Movie(Base):
     cast = relationship("MovieCast", back_populates="movie")
     platforms = relationship("MoviePlatform", back_populates="movie")
     ratings = relationship("Rating", back_populates="movie")
+    watchlist_items = relationship("WatchlistItem", back_populates="movie")
 
 class Rating(Base):
     __tablename__ = "ratings"
@@ -102,6 +103,27 @@ class Rating(Base):
 
     user = relationship("User", back_populates="ratings")
     movie = relationship("Movie", back_populates="ratings")
+
+class WatchlistStatus(str, enum.Enum):
+    want_to_watch = "want_to_watch"
+    watched = "watched"
+    abandoned = "abandoned"
+
+class WatchlistItem(Base):
+    __tablename__ ="watchlist_items"
+    id = Column(Integer,primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id = Column(Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
+    status = Column(Enum(WatchlistStatus), nullable=False, default= WatchlistStatus.want_to_watch)
+    added_at = Column(DateTime, default=datetime.now, nullable=False)
+    watched_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "movie_id", name="uq_user_movie_watchlist"),
+    )
+    user = relationship("User", back_populates="watchlist_items")
+    movie = relationship("Movie", back_populates="watchlist_items")
+
 
 class Person(Base):
     __tablename__ = "people"
@@ -213,6 +235,7 @@ class User(Base):
     )
     credentials = relationship("UserCredentials", back_populates="user", uselist=False)
     ratings = relationship("Rating", back_populates="user")
+    watchlist_items = relationship("WatchlistItem", back_populates="user")
 
 
 class UserCredentials(Base):
