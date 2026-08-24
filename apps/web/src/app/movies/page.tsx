@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, SlidersHorizontal, X, Film, TriangleAlert } from "lucide-react";
 import { movieApi } from "@/lib/api/movies";
 import { MovieCard } from "@/components/MovieCard";
 import type { MovieListItem } from "@/types/movie";
@@ -110,6 +110,7 @@ export default function MoviesPage() {
   }, [loadMore]);
 
   const clearSearch = () => setQuery("");
+  const selectedGenreName = genres.find((g) => g.id === selectedGenreId)?.name;
 
   return (
     <main className="min-h-screen bg-paper text-ink">
@@ -130,7 +131,7 @@ export default function MoviesPage() {
           </div>
         </section>
 
-        <section className="border-y border-ash/20">
+        <section className="sticky top-16.25 z-10 -mx-5 px-5 md:-mx-10 md:px-10 bg-paper/90 backdrop-blur-md border-y border-ash/20">
           <div className="py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ash" />
@@ -153,7 +154,7 @@ export default function MoviesPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <SlidersHorizontal className="h-4 w-4 text-ash" />
+              <SlidersHorizontal className="h-4 w-4 text-ash shrink-0" />
               <select
                 value={selectedGenreId ?? ""}
                 onChange={(e) => setSelectedGenreId(e.target.value ? Number(e.target.value) : undefined)}
@@ -164,25 +165,47 @@ export default function MoviesPage() {
                   <option key={genre.id} value={genre.id}>{genre.name}</option>
                 ))}
               </select>
-              {/* <span className="hidden sm:inline font-mono text-xs text-ash whitespace-nowrap">
-                {movies.length} films
-              </span> */}
             </div>
           </div>
+
+          {selectedGenreName && (
+            <div className="pb-4 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 font-sans text-xs text-ink bg-signal/10 border border-signal/25 rounded-full pl-3 pr-2 py-1">
+                {selectedGenreName}
+                <button
+                  onClick={() => setSelectedGenreId(undefined)}
+                  aria-label={`Remove ${selectedGenreName} filter`}
+                  className="text-signal hover:text-signal-hover"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            </div>
+          )}
         </section>
 
         {error && (
-          <div className="py-5">
-            <p className="font-sans text-sm text-signal">{error}</p>
+          <div className="py-5 flex items-center gap-2 font-sans text-sm text-signal">
+            <TriangleAlert className="h-4 w-4 shrink-0" />
+            {error}
           </div>
         )}
 
         {isLoading && movies.length === 0 ? (
-          <div className="py-20">
-            <p className="font-sans text-sm text-ash">Finding movies...</p>
-          </div>
+          <section className="pt-10">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-5 gap-y-12 md:gap-x-7 md:gap-y-14">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i}>
+                  <div className="aspect-2/3 rounded-lg skeleton" />
+                  <div className="h-3.5 w-4/5 rounded skeleton mt-3" />
+                  <div className="h-3 w-2/5 rounded skeleton mt-2" />
+                </div>
+              ))}
+            </div>
+          </section>
         ) : movies.length === 0 ? (
-          <div className="py-24 text-center">
+          <div className="py-24 text-center animate-fade-in">
+            <Film className="h-8 w-8 text-ash/50 mx-auto mb-4" strokeWidth={1.5} />
             <h2 className="font-display text-2xl text-ink mb-2">No films found.</h2>
             <p className="font-sans text-sm text-ash">Try another search or genre.</p>
           </div>
@@ -203,15 +226,21 @@ export default function MoviesPage() {
             </div>
 
             <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-5 gap-y-12 md:gap-x-7 md:gap-y-14">
-              {movies.map((movie) => (
-                <MovieCard key={movie.id} movie={movie} />
+              {movies.map((movie, i) => (
+                <div
+                  key={movie.id}
+                  className="stagger-item"
+                  style={{ animationDelay: `${Math.min(i % PAGE_SIZE, 12) * 40}ms` }}
+                >
+                  <MovieCard movie={movie} />
+                </div>
               ))}
             </div>
 
             <div ref={sentinelRef} className="flex min-h-28 items-center justify-center">
               {isLoadingMore && (
                 <div className="flex items-center gap-3">
-                  <div className="h-4 w-4 rounded-full border-2 border-ash/30 border-t-ink animate-spin" />
+                  <div className="h-4 w-4 rounded-full border-2 border-ash/30 border-t-signal animate-spin" />
                   <span className="font-sans text-xs text-ash">Loading more films...</span>
                 </div>
               )}

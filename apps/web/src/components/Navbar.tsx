@@ -1,44 +1,123 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { Menu, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Logo } from "./Logo";
+import { Button } from "./Button";
 
 export function Navbar() {
   const { user, isLoading, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   async function handleLogout() {
+    setMenuOpen(false);
     await logout();
     router.push("/login");
   }
 
-  return (
-    <header className="border-b border-ash/20 bg-paper">
-      <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-        <Logo />
+  const navLinkClass = (href: string) =>
+    `relative font-sans text-sm transition-colors after:absolute after:left-0 after:-bottom-1 after:h-px after:bg-signal after:transition-all ${
+      pathname === href
+        ? "text-ink after:w-full"
+        : "text-ash hover:text-ink after:w-0 hover:after:w-full"
+    }`;
 
-        <nav className="font-sans text-sm flex items-center gap-4">
-          {isLoading ? null : user ? (
+  return (
+    <header className="border-b border-ash/15 bg-paper/90 backdrop-blur-md sticky top-0 z-20">
+      <div className="max-w-7xl mx-auto px-5 md:px-10 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-8">
+          <Link href="/" onClick={() => setMenuOpen(false)}>
+            <Logo />
+          </Link>
+          <Link href="/movies" className={`hidden sm:inline ${navLinkClass("/movies")}`}>
+            Browse
+          </Link>
+        </div>
+
+        {/* Desktop nav */}
+        <nav className="hidden sm:flex items-center gap-3">
+          {isLoading ? (
+            <div className="h-9 w-20 rounded-md skeleton" />
+          ) : user ? (
             <>
-              <span className="text-ash">{user.username}</span>
-              <button onClick={handleLogout} className="text-ink hover:text-signal">
+              <span className="font-sans text-sm text-ash">{user.username}</span>
+              <Button variant="ghost" onClick={handleLogout}>
                 Log out
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <Link href="/login" className="text-ink hover:text-signal">
+              <Link
+                href="/login"
+                className="font-sans text-sm text-ink hover:text-signal transition-colors"
+              >
                 Sign in
               </Link>
+              <Button variant="solid" onClick={() => router.push("/signup")}>
+                Sign up
+              </Button>
+            </>
+          )}
+        </nav>
+
+        {/* Mobile toggle */}
+        <button
+          type="button"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+          className="sm:hidden flex items-center justify-center h-9 w-9 rounded-md text-ink hover:bg-ink/5 transition-colors"
+        >
+          {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {/* Mobile menu */}
+      <div
+        className={`sm:hidden overflow-hidden border-t border-ash/15 bg-paper transition-[max-height,opacity] duration-300 ease-out ${
+          menuOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        <nav className="px-5 py-4 flex flex-col gap-4">
+          <Link
+            href="/movies"
+            onClick={() => setMenuOpen(false)}
+            className="font-sans text-sm text-ink"
+          >
+            Browse
+          </Link>
+
+          {isLoading ? null : user ? (
+            <div className="flex items-center justify-between">
+              <span className="font-sans text-sm text-ash">{user.username}</span>
+              <Button variant="ghost" onClick={handleLogout}>
+                Log out
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
               <Link
-                href="/signup"
-                className="bg-ink text-paper rounded-md px-3 py-1.5 hover:opacity-90"
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="font-sans text-sm text-ink"
+              >
+                Sign in
+              </Link>
+              <Button
+                variant="solid"
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push("/signup");
+                }}
               >
                 Sign up
-              </Link>
-            </>
+              </Button>
+            </div>
           )}
         </nav>
       </div>

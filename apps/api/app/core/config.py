@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     TMDB_READ_ACCESS_TOKEN: str
     TMDB_BASE_URL: str = "https://api.themoviedb.org/3"
-    TMDB_IMAGE_BASE_URL: str = "https://image.tmdb.org/t/p/w500"
+    TMDB_IMAGE_BASE_URL: str = "https://image.tmdb.org/t/p/original"
 
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"

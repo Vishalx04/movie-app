@@ -35,7 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${fraunces.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable} antialiased`}
+        className={`${fraunces.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable} antialiased bg-paper text-ink selection:bg-signal selection:text-paper`}
       >
         <AuthProvider>
           <div className="flex min-h-screen flex-col">
