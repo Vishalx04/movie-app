@@ -1,3 +1,5 @@
+import type { MovieListItem } from "./movie";
+
 export type WatchlistStatus = "want_to_watch" | "watched" | "abandoned";
 
 export interface WatchlistItem {
@@ -6,4 +8,5 @@ export interface WatchlistItem {
   status: WatchlistStatus;
   added_at: string;
   watched_at: string | null;
+  movie: MovieListItem;
 }

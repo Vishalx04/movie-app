@@ -2,6 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.db.models import WatchlistStatus
+from app.schemas.movie import MovieListItem
 
 class WatchlistCreate(BaseModel):
     movie_id : int
@@ -15,7 +16,6 @@ class WatchlistResponse(BaseModel):
     status : WatchlistStatus
     added_at:datetime
     watched_at:datetime | None
+    movie: MovieListItem
 
     model_config = ConfigDict(from_attributes=True)
-
-    

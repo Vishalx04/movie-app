@@ -31,12 +31,7 @@ export function Navbar() {
     <header className="border-b border-ash/15 bg-paper/90 backdrop-blur-md sticky top-0 z-20">
       <div className="max-w-7xl mx-auto px-5 md:px-10 py-4 flex items-center justify-between">
         <div className="flex items-center gap-8">
-          <Link href="/" onClick={() => setMenuOpen(false)}>
-            <Logo />
-          </Link>
-          <Link href="/movies" className={`hidden sm:inline ${navLinkClass("/movies")}`}>
-            Browse
-          </Link>
+          <Logo />
         </div>
 
         {/* Desktop nav */}
@@ -45,6 +40,9 @@ export function Navbar() {
             <div className="h-9 w-20 rounded-md skeleton" />
           ) : user ? (
             <>
+              <Link href="/watchlist" className={navLinkClass("/watchlist")}>
+                Watchlist
+              </Link>
               <span className="font-sans text-sm text-ash">{user.username}</span>
               <Button variant="ghost" onClick={handleLogout}>
                 Log out
@@ -84,21 +82,22 @@ export function Navbar() {
         }`}
       >
         <nav className="px-5 py-4 flex flex-col gap-4">
-          <Link
-            href="/movies"
-            onClick={() => setMenuOpen(false)}
-            className="font-sans text-sm text-ink"
-          >
-            Browse
-          </Link>
-
           {isLoading ? null : user ? (
-            <div className="flex items-center justify-between">
-              <span className="font-sans text-sm text-ash">{user.username}</span>
-              <Button variant="ghost" onClick={handleLogout}>
-                Log out
-              </Button>
-            </div>
+            <>
+              <Link
+                href="/watchlist"
+                onClick={() => setMenuOpen(false)}
+                className="font-sans text-sm text-ink"
+              >
+                Watchlist
+              </Link>
+              <div className="flex items-center justify-between">
+                <span className="font-sans text-sm text-ash">{user.username}</span>
+                <Button variant="ghost" onClick={handleLogout}>
+                  Log out
+                </Button>
+              </div>
+            </>
           ) : (
             <div className="flex items-center gap-3">
               <Link

@@ -2,6 +2,11 @@ import type { WatchlistItem, WatchlistStatus } from "@/types/watchlist";
 import { apifetch } from "../api-client";
 
 export const watchlistApi = {
+  list: (accessToken: string, status?: WatchlistStatus) => {
+    const query = status ? `?status=${status}` : "";
+    return apifetch<WatchlistItem[]>(`/watchlist/me${query}`, {}, accessToken);
+  },
+
   add: (movieId: number, accessToken: string) =>
     apifetch<WatchlistItem>(
       "/watchlist/",

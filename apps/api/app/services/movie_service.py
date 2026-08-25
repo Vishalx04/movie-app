@@ -10,7 +10,7 @@ def _build_image_url(path: str | None) -> str | None:
     return f"{settings.TMDB_IMAGE_BASE_URL}{path}"
 
 
-def _attach_url(movie: Movie):
+def attach_image_urls(movie: Movie):
     movie.backdrop_url = _build_image_url(movie.backdrop_path)
     movie.poster_url = _build_image_url(movie.poster_path)
     return movie
@@ -35,7 +35,7 @@ def get_all_movies(
 
     movies = query.offset(skip).limit(limit).all()
 
-    return [_attach_url(m) for m in movies]
+    return [attach_image_urls(m) for m in movies]
 
 
 def get_movie_by_id(db: Session, movie_id: int) -> Movie | None:
@@ -47,7 +47,7 @@ def get_movie_by_id(db: Session, movie_id: int) -> Movie | None:
     movie = query.first()
 
     if movie:
-        _attach_url(movie)
+        attach_image_urls(movie)
     return movie
 
 
@@ -62,4 +62,4 @@ def create_movie(db: Session, payload: MovieCreate) -> Movie:
     db.add(movie)
     db.commit()
     db.refresh(movie)
-    return _attach_url(movie)
+    return attach_image_urls(movie)
