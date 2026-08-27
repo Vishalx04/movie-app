@@ -14,6 +14,8 @@ class Settings(BaseSettings):
         "postgresql+psycopg2://postgres:postgres@localhost:5432/movie_db"
     )
 
+    TEST_DATABASE_URL: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/movie_db_test"
+
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     TMDB_READ_ACCESS_TOKEN: str
