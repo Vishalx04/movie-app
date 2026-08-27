@@ -13,10 +13,14 @@ from sqlalchemy import (
     Date,
     UniqueConstraint,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db.database import Base
 from sqlalchemy.orm import relationship
 import enum
+
+
+def utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class MovieStatus(str, enum.Enum):
@@ -34,7 +38,7 @@ class Genre(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False, unique=True)
     slug = Column(String(100), nullable=False, unique=True)
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
 
 movie_genres = Table(
@@ -65,7 +69,9 @@ class Movie(Base):
     backdrop_path = Column(String(255), nullable=True)
     original_language = Column(String(10), nullable=True)
 
-    status = Column(Enum(MovieStatus), nullable=False, default=MovieStatus.released)
+    status = Column(
+        Enum(MovieStatus), nullable=False, default=MovieStatus.released
+    )
 
     budget = Column(BigInteger, nullable=True)
     revenue = Column(BigInteger, nullable=True)
@@ -75,9 +81,9 @@ class Movie(Base):
     tmdb_vote_count = Column(Integer, nullable=True)
     trailer_link = Column(String(500), nullable=True)
 
-    created_at = Column(DateTime, nullable=False, default=datetime.now)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.now, onupdate=datetime.now
+        DateTime, nullable=False, default=utcnow, onupdate=utcnow
     )
 
     # Relationships
@@ -87,15 +93,22 @@ class Movie(Base):
     ratings = relationship("Rating", back_populates="movie")
     watchlist_items = relationship("WatchlistItem", back_populates="movie")
 
+
 class Rating(Base):
     __tablename__ = "ratings"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    movie_id =Column(Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
-    rating =Column(Float, nullable=False)
-    rated_at =Column(DateTime, default=datetime.now, nullable=False)
-    updated_at =Column(DateTime, default= datetime.now, onupdate=datetime.now, nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    movie_id = Column(
+        Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False
+    )
+    rating = Column(Float, nullable=False)
+    rated_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
+    )
 
     __table_args__ = (
         UniqueConstraint("user_id", "movie_id", name="uq_user_movie_rating"),
@@ -104,29 +117,44 @@ class Rating(Base):
     user = relationship("User", back_populates="ratings")
     movie = relationship("Movie", back_populates="ratings")
 
+
 class WatchlistStatus(str, enum.Enum):
     want_to_watch = "want_to_watch"
     watched = "watched"
     abandoned = "abandoned"
 
+
 class WatchlistItem(Base):
-    __tablename__ ="watchlist_items"
-    id = Column(Integer,primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    movie_id = Column(Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
-    status = Column(Enum(WatchlistStatus), nullable=False, default= WatchlistStatus.want_to_watch)
-    added_at = Column(DateTime, default=datetime.now, nullable=False)
+    __tablename__ = "watchlist_items"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    movie_id = Column(
+        Integer, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False
+    )
+    status = Column(
+        Enum(WatchlistStatus),
+        nullable=False,
+        default=WatchlistStatus.want_to_watch,
+    )
+    added_at = Column(DateTime, default=utcnow, nullable=False)
     watched_at = Column(DateTime, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("user_id", "movie_id", name="uq_user_movie_watchlist"),
+        UniqueConstraint(
+            "user_id", "movie_id", name="uq_user_movie_watchlist"
+        ),
     )
+
     user = relationship("User", back_populates="watchlist_items")
     movie = relationship("Movie", back_populates="watchlist_items")
 
 
 class Person(Base):
     __tablename__ = "people"
+
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
     original_name = Column(String(255), nullable=True)
@@ -139,9 +167,9 @@ class Person(Base):
     deathday = Column(DateTime, nullable=True)
     place_of_birth = Column(String(255), nullable=True)
 
-    created_at = Column(DateTime, nullable=False, default=datetime.now)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.now, onupdate=datetime.now
+        DateTime, nullable=False, default=utcnow, onupdate=utcnow
     )
 
     movie_credits = relationship("MovieCast", back_populates="person")
@@ -159,7 +187,9 @@ class MovieCast(Base):
     billing_order = Column(Integer, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("movie_id", "person_id", "role", name="uq_movie_person_role"),
+        UniqueConstraint(
+            "movie_id", "person_id", "role", name="uq_movie_person_role"
+        ),
     )
 
     movie = relationship("Movie", back_populates="cast")
@@ -168,15 +198,16 @@ class MovieCast(Base):
 
 class Platform(Base):
     __tablename__ = "platforms"
+
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False, unique=True)
     slug = Column(String(100), nullable=False, unique=True)
     logo_url = Column(String(500), nullable=True)
     website_url = Column(String(500), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(
-        DateTime, default=datetime.now, onupdate=datetime.now, nullable=False
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
 
@@ -197,7 +228,7 @@ class MoviePlatform(Base):
     platform_type = Column(Enum(PlatformType), nullable=False)
     region = Column(String(5), nullable=True)
     url = Column(String(500), nullable=True)
-    checked_at = Column(DateTime, default=datetime.now, nullable=False)
+    checked_at = Column(DateTime, default=utcnow, nullable=False)
 
     __table_args__ = (
         UniqueConstraint(
@@ -220,6 +251,7 @@ class UserRole(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
+
     id = Column(Integer, primary_key=True)
     email = Column(String(255), nullable=False, unique=True)
     username = Column(String(100), nullable=False, unique=True)
@@ -229,23 +261,29 @@ class User(Base):
     )
     is_seed_user = Column(Boolean, nullable=False, default=False)
 
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.now, onupdate=datetime.now
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
-    credentials = relationship("UserCredentials", back_populates="user", uselist=False)
+
+    credentials = relationship(
+        "UserCredentials", back_populates="user", uselist=False
+    )
     ratings = relationship("Rating", back_populates="user")
     watchlist_items = relationship("WatchlistItem", back_populates="user")
 
 
 class UserCredentials(Base):
     __tablename__ = "user_credentials"
+
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id"), nullable=False, unique=True
+    )
     password_hash = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(
-        DateTime, default=datetime.now, nullable=False, onupdate=datetime.now
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
     user = relationship("User", back_populates="credentials")
@@ -253,11 +291,12 @@ class UserCredentials(Base):
 
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
+
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     token_hash = Column(String(255), nullable=False, unique=True)
     expires_at = Column(DateTime, nullable=False)
     revoked_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     user = relationship("User")

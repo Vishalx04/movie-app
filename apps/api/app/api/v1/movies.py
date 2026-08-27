@@ -21,10 +21,7 @@ def list_movies(
 
 @router.get("/{movie_id}", response_model=MovieResponse)
 def get_movie(movie_id: int, db: Session = Depends(get_db)):
-    movie = movie_service.get_movie_by_id(db, movie_id)
-    if not movie:
-        raise HTTPException(status_code=404, detail="Movie not found")
-    return movie
+    return movie_service.get_movie_by_id(db, movie_id)
 
 
 @router.post("/", response_model=MovieResponse)

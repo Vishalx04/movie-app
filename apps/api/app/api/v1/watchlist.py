@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -20,10 +20,7 @@ def add_movie(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        return watchlist_service.add_to_watchlist(db, current_user.id, payload.movie_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    return watchlist_service.add_to_watchlist(db, current_user.id, payload.movie_id)
 
 
 @router.get("/me", response_model=list[WatchlistResponse])
@@ -32,21 +29,26 @@ def get_my_watchlist(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return watchlist_service.get_user_watchlist(db, current_user.id,status= status)
+    return watchlist_service.get_user_watchlist(db, current_user.id, status=status)
+
 
 @router.get("/movie/{movie_id}", response_model=WatchlistResponse)
-def get_watchlist_status_for_movie(movie_id:int, db:Session = Depends(get_db), current_user:User = Depends(get_current_user)):
-    item = watchlist_service.get_watchlist_item_for_movie(db,current_user.id,movie_id=movie_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Movie is not on your watchlist")
-    return item
+def get_watchlist_status_for_movie(
+    movie_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return watchlist_service.get_watchlist_item_for_movie(db, current_user.id, movie_id)
+
 
 @router.patch("/movie/{movie_id}", response_model=WatchlistResponse)
-def update_movie_status(movie_id :int,payload:WatchlistStatusUpdate, db:Session = Depends(get_db), current_user : User = Depends(get_current_user) ):
-    try:
-        return watchlist_service.update_status(db,current_user.id, movie_id=movie_id,new_status=payload.status)
-    except ValueError as e:
-        raise HTTPException(status_code= 404, detail=str(e))
+def update_movie_status(
+    movie_id: int,
+    payload: WatchlistStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return watchlist_service.update_status(db, current_user.id, movie_id=movie_id, new_status=payload.status)
 
 
 @router.delete("/movie/{movie_id}", status_code=204)
@@ -55,6 +57,4 @@ def remove_movie(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    removed = watchlist_service.remove_from_watchlist(db, current_user.id, movie_id)
-    if not removed:
-        raise HTTPException(status_code=404, detail="Movie is not on your watchlist")
+    watchlist_service.remove_from_watchlist(db, current_user.id, movie_id)
