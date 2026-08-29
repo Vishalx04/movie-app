@@ -35,7 +35,6 @@ def test_get_user_rating_for_movie_raises_when_not_rated(db, test_user, test_mov
         rating_service.get_user_rating_for_movie(db, test_user.id, test_movie.id)
 
 def test_get_user_ratings_orders_by_most_recently_updated(db, test_user, test_movie):
-    movie2 = test_movie
     from app.db.models import Movie, MovieStatus
 
     second_movie = Movie(tmdb_id="888888", title="Second Movie", status=MovieStatus.released, adult=False)
