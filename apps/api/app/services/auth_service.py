@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, UnauthorizedError
 from app.db.models import User, UserCredentials, RefreshToken
 from app.schemas.user import UserSignup
 from app.core.config import settings
@@ -26,7 +26,7 @@ def signup(db: Session, payload: UserSignup) -> User:
     try:
         user = User(email=payload.email, username=payload.username, name=payload.name)
         db.add(user)
-        db.flush()  # catches constraint violations before commit
+        db.flush()
         credentials = UserCredentials(
             user_id=user.id, password_hash=hash_password(payload.password)
         )
@@ -45,14 +45,14 @@ def signup(db: Session, payload: UserSignup) -> User:
         raise ConflictError("Account could not be created")
 
 
-def authenticate_user(db: Session, email: str, password: str) -> User | None:
+def authenticate_user(db: Session, email: str, password: str) -> User:
     user = get_user_by_email(db, email)
     if not user or not user.credentials:
         logger.warning("Login failed - user not found: %s", email)
-        return None
+        raise UnauthorizedError("Invalid email or password")
     if not verify_password(password, user.credentials.password_hash):
         logger.warning("Login failed - wrong password: %s", email)
-        return None
+        raise UnauthorizedError("Invalid email or password")
     logger.info("User authenticated: %s", email)
     return user
 
@@ -73,20 +73,21 @@ def create_refresh_token_for_user(db: Session, user_id: int) -> str:
         return raw_token
     except Exception:
         db.rollback()
-        logger.error("Failed to create refresh token for user_id: %s", user_id, exc_info=True)
+        logger.error(
+            "Failed to create refresh token for user_id: %s", user_id, exc_info=True
+        )
         raise
 
-def login(db: Session, email: str, password: str) -> tuple[str, str] | None:
+
+def login(db: Session, email: str, password: str) -> tuple[str, str]:
     user = authenticate_user(db, email, password)
-    if not user:
-        return None
     logger.info("User logged in: %s", email)
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token_for_user(db, user.id)
     return access_token, refresh_token
 
 
-def rotate_refresh_token(db: Session, raw_token: str) -> tuple[str, str] | None:
+def rotate_refresh_token(db: Session, raw_token: str) -> tuple[str, str]:
     token_hash = hash_refresh_token(raw_token)
     existing = (
         db.query(RefreshToken)
@@ -98,7 +99,7 @@ def rotate_refresh_token(db: Session, raw_token: str) -> tuple[str, str] | None:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     if not existing or existing.expires_at < now:
         logger.warning("Refresh token invalid or expired")
-        return None
+        raise UnauthorizedError("Invalid or expired refresh token")
 
     try:
         existing.revoked_at = datetime.now(timezone.utc)
@@ -112,7 +113,7 @@ def rotate_refresh_token(db: Session, raw_token: str) -> tuple[str, str] | None:
             expires_at=expires_at,
         )
         db.add(new_token)
-        db.commit()  # single commit — both revoke + create succeed or neither does
+        db.commit()
         logger.info("Refresh token rotated for user_id: %s", existing.user_id)
         new_access_token = create_access_token({"sub": str(existing.user_id)})
         return new_access_token, raw_new_token
@@ -123,15 +124,15 @@ def rotate_refresh_token(db: Session, raw_token: str) -> tuple[str, str] | None:
             existing.user_id,
             exc_info=True,
         )
-        return None
+        raise
 
 
 def revoke_refresh_token(db: Session, raw_token: str) -> None:
     try:
         token_hash = hash_refresh_token(raw_token)
-        existing = db.query(RefreshToken).filter(
-            RefreshToken.token_hash == token_hash
-        ).first()
+        existing = (
+            db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+        )
         if existing:
             existing.revoked_at = datetime.now(timezone.utc)
             db.commit()

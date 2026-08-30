@@ -1,15 +1,3 @@
-"""
-Idempotent TMDB enrichment script: backfills poster, overview, release date,
-runtime, and other metadata onto movies already seeded from MovieLens.
-
-Safe to re-run — movies that already have a poster_path (including a
-confirmed "not found" marker) are skipped.
-
-Run from the repo root:
-    python -m scripts.seed.enrich_tmdb --limit 200
-    python -m scripts.seed.enrich_tmdb --limit 0   # 0 = no limit, process all
-"""
-
 import argparse
 import sys
 import time
@@ -19,10 +7,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 API_DIR = REPO_ROOT / "apps" / "api"
 sys.path.insert(0, str(API_DIR))
 
-import requests  # noqa: E402
-from app.core.config import settings  # noqa: E402
-from app.db.database import sessionLocal  # noqa: E402
-from app.db.models import Movie, MovieStatus  # noqa: E402
+import requests  
+from app.core.config import settings 
+from app.db.database import sessionLocal  
+from app.db.models import Movie, MovieStatus  
 
 REQUEST_DELAY_SECONDS = 0.05
 MAX_RETRIES = 3
