@@ -1,7 +1,6 @@
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-
 from app.core.config import settings
 from app.db.database import Base
 from app.db.models import User, Movie, MovieStatus
@@ -63,3 +62,12 @@ def test_movie(db):
     db.commit()
     db.refresh(movie)
     return movie
+
+
+@pytest.fixture
+def enriched_movie(db, test_movie):
+    test_movie.poster_path = "/fake-poster.jpg"
+    test_movie.backdrop_path = "/fake-backdrop.jpg"
+    db.commit()
+    db.refresh(test_movie)
+    return test_movie

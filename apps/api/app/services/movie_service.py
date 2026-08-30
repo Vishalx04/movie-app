@@ -30,7 +30,7 @@ def get_all_movies(
     logger.info("Fetching movies skip=%s limit=%s q=%s genre_id=%s", skip, limit, q, genre_id)
     query = _enriched_only(db.query(Movie))
     if q:
-        query = query.filter(Movie.title.ilike(f"{q}%"))
+        query = query.filter(Movie.title.ilike(f"%{q}%"))
 
     if genre_id:
         query = query.join(Movie.genres).filter(Genre.id == genre_id)
@@ -40,7 +40,7 @@ def get_all_movies(
     return [attach_image_urls(m) for m in movies]
 
 
-def get_movie_by_id(db: Session, movie_id: int) -> Movie | None:
+def get_movie_by_id(db: Session, movie_id: int) -> Movie:
     query = _enriched_only(
         db.query(Movie)
         .options(joinedload(Movie.genres))
@@ -58,7 +58,7 @@ def get_movie_by_id(db: Session, movie_id: int) -> Movie | None:
 def create_movie(db: Session, payload: MovieCreate) -> Movie:
     logger.info("Creating movie: %s", payload.title)
     try:
-        data = payload.model_dump(exclude="genre_ids")
+        data = payload.model_dump(exclude={"genre_ids"})
         movie = Movie(**data)
         if payload.genre_ids:
             genres = db.query(Genre).filter(Genre.id.in_(payload.genre_ids)).all()
