@@ -37,3 +37,4 @@ python-multipart
 requests
 pytest
 pytest-cov
+httpx

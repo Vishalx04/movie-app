@@ -1,9 +1,16 @@
 import pytest
+
+from fastapi.testclient import TestClient
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+
 from app.core.config import settings
-from app.db.database import Base
-from app.db.models import User, Movie, MovieStatus
+from app.core.security import create_access_token
+from app.db.database import Base, get_db
+from app.db.models import Movie, MovieStatus, User, UserRole
+from app.main import app
+
 
 engine = create_engine(settings.TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(bind=engine)
@@ -71,3 +78,39 @@ def enriched_movie(db, test_movie):
     db.commit()
     db.refresh(test_movie)
     return test_movie
+
+@pytest.fixture
+def client(db):
+    def override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_headers(test_user):
+    token = create_access_token({"sub": str(test_user.id)})
+    return {"Authorization": f"Bearer {token}"}
+
+@pytest.fixture
+def admin_user(db):
+
+    user = User(
+        email = "admin@example.com",
+        username = "adminuser",
+        name = "Admin user",
+        role = UserRole.admin
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+@pytest.fixture
+def admin_auth_headers(admin_user):
+    token = create_access_token({"sub" : str(admin_user.id)})
+    return {"Authorization": f"Bearer {token}"}
+    
