@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from fastapi import APIRouter, Depends, Response, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.exceptions import UnauthorizedError
 from app.db.database import get_db
 from app.schemas.user import UserSignup, UserLogin, UserResponse, Token
 from app.services import auth_service
@@ -33,10 +34,7 @@ def signup(payload: UserSignup, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 def login(payload: UserLogin, response: Response, db: Session = Depends(get_db)):
-    result = auth_service.login(db, payload.email, payload.password)
-    if not result:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    access_token, refresh_token = result
+    access_token, refresh_token = auth_service.login(db, payload.email, payload.password)
     _set_refresh_cookie(response, refresh_token)
     return Token(access_token=access_token)
 
@@ -45,11 +43,8 @@ def login(payload: UserLogin, response: Response, db: Session = Depends(get_db))
 def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
     raw_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if not raw_token:
-        raise HTTPException(status_code=401, detail="Refresh token missing")
-    result = auth_service.rotate_refresh_token(db, raw_token)
-    if not result:
-        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
-    new_access_token, new_refresh_token = result
+        raise UnauthorizedError("Refresh token missing")
+    new_access_token, new_refresh_token = auth_service.rotate_refresh_token(db, raw_token)
     _set_refresh_cookie(response, new_refresh_token)
     return Token(access_token=new_access_token)
 
