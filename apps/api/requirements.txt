@@ -38,3 +38,6 @@ requests
 pytest
 pytest-cov
 httpx
+scikit-surprise
+pandas
+matplotlib
