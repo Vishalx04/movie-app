@@ -1,0 +1,22 @@
+{
+  "model_name": "svd_baseline_v1",
+  "algorithm": "SVD",
+  "library": "scikit-surprise",
+  "trained_at": "2026-09-05T06:29:16.259210+00:00",
+  "hyperparameters": {
+    "n_factors": 50,
+    "n_epochs": 20,
+    "random_state": 42
+  },
+  "training_data": {
+    "source": "ml-20m ratings.csv",
+    "filter": "movies with >= 5 ratings",
+    "movies_after_filter": 18345,
+    "ratings_after_filter": 19984024
+  },
+  "evaluation": {
+    "rmse": 0.786,
+    "hit_rate_at_10": 0.4757,
+    "hit_rate_eval_method": "sampled negatives (99 negatives + 1 true positive), 3000 sampled positives"
+  }
+}

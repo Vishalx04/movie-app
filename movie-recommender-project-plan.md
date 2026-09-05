@@ -1,343 +1,176 @@
-# Movie Recommendation App — Project Plan
+# Movie Recommendation App — Project Plan (Updated)
 
-An IMDb-style movie app combining recommendation systems, AI automation, full-stack development, testing, and DevOps — built as a learning project to move from tutorial-level skills toward production-style engineering practices.
+An IMDb-style movie app combining recommendation systems, AI automation, full-stack development, testing, and security — built as a learning project to move from tutorial-level skills toward production-style engineering practices.
+
+This supersedes the original plan's architecture/milestone sections. See the separate living progress doc for narrative history, bugs found, and decision reasoning.
 
 ---
 
 ## 1. Concept
 
-A movie discovery app where users browse/rate movies, get personalized recommendations, and receive **smart notifications** when a movie they'd likely want to watch releases. Built with:
+A movie discovery app where users browse/rate movies, track a watchlist, and get personalized recommendations across three distinct surfaces:
 
-- **MovieLens** dataset — seed data for the recommender (historical ratings)
-- **TMDB API** — live metadata, posters, release dates, upcoming releases
-- **AI automation** — LLM-generated personalized release notifications
+- **"Users with similar taste"** — pure collaborative filtering
+- **"Because you liked X"** — pure content-based filtering
+- **"You may like"** — hybrid, blending both signals
 
-This project is deliberately scoped as a full **product**, not just a model in a notebook — combining ML, backend, frontend, testing, and DevOps into one coherent system.
-
----
-
-## 2. Why This Project (vs. a plain recommender)
-
-A generic "MovieLens + cosine similarity" recommender is one of the most overused portfolio projects and blends into thousands of similar repos. What makes this version resume-worthy for larger companies:
-
-- Two-stage pipeline mindset (candidate generation → ranking), which mirrors real recsys system design questions
-- A real serving layer, not just offline notebooks
-- Explicit cold-start handling (new users, new movies not in MovieLens)
-- A production mindset: containerization, CI/CD, observability, testing
-- An AI automation layer (notifications) that's genuinely useful, not just bolted on
+Built on:
+- **MovieLens (`ml-20m`)** — 20M ratings, 26.7K movies, seed data for the recommender
+- **TMDB API** — live metadata, posters, release dates
+- **AI automation** — LLM-generated personalized release notifications (later milestone)
 
 ---
 
-## 3. High-Level Architecture
+## 2. Architecture
+
+### 2.1 Single-service backend
+FastAPI handles both product API routes and ML serving routes in one codebase, not a separate Express + FastAPI split. Internal boundary (`app/api/` vs `app/ml/`) preserves the option to extract ML into its own service later without a rewrite.
+
+**Why:** early-career project — depth in one language compounds faster than splitting effort across two, especially heading into ML-heavy work.
 
 ```
-┌─────────────┐      ┌──────────────────┐      ┌─────────────────┐
-│   Next.js   │─────▶│  Express Backend  │─────▶│   PostgreSQL     │
-│  (Frontend) │      │   (Core API)      │      │  (users, ratings,│
-└─────────────┘      └──────────────────┘      │   watchlist,     │
-                              │                  │   movies)        │
-                              │                  └─────────────────┘
-                              ▼
-                      ┌──────────────────┐
-                      │  FastAPI ML       │
-                      │  Service          │──────▶ Model artifacts
-                      │  (Recommendations)│         (MLflow registry)
-                      └──────────────────┘
-                              │
-                              ▼
-                      ┌──────────────────┐      ┌─────────────────┐
-                      │  Redis            │      │   TMDB API       │
-                      │ (cache + queue)   │      │  (external)      │
-                      └──────────────────┘      └─────────────────┘
-                              │
-                              ▼
-                      ┌──────────────────┐
-                      │  Worker            │
-                      │ (BullMQ - sync jobs,│
-                      │  notification jobs)│
-                      └──────────────────┘
-                              │
-                              ▼
-                      ┌──────────────────┐
-                      │  Notification      │
-                      │  Delivery (email)  │
-                      │  + LLM blurb gen    │
-                      └──────────────────┘
+apps/api/
+├── app/
+│   ├── api/v1/          # routes — thin, parse → call service → return
+│   ├── services/         # business logic, raises custom exceptions
+│   ├── core/
+│   │   ├── exceptions.py       # AppError + NotFoundError/UnauthorizedError/etc.
+│   │   ├── error_handlers.py   # global exception → HTTP response mapping
+│   │   ├── security.py         # hashing, JWT
+│   │   ├── dependencies.py     # get_current_user, require_admin
+│   │   └── config.py
+│   ├── db/
+│   │   ├── models.py
+│   │   └── database.py
+│   ├── schemas/           # Pydantic request/response contracts
+│   └── ml/                # recommendation logic lives here (same service)
+│       └── training/
+│           └── notebooks/  # exploration — not production code
+├── migrations/             # Alembic
+├── tests/
+│   ├── unit/
+│   └── integration/
+├── scripts/seed/
+│   ├── seed_movielens.py
+│   └── enrich_tmdb.py
+└── requirements.txt
+
+apps/web/                   # Next.js (App Router), TypeScript, Tailwind v4
+data/ml-20m/
+docs/decisions/             # ADRs
 ```
 
-**Design rationale:**
-- Express (core API) and FastAPI (ML) are **separate services**, mirroring how real companies split "product backend" from "ML serving." Enables independent scaling/deployment/retraining.
-- Redis does double duty: cache for hot data (popular movies, computed recommendations) and backing store for BullMQ background jobs.
-- The worker runs as a separate process from the API — background jobs shouldn't run inside a request/response server.
+### 2.2 Auth model
+- Access tokens: short-lived JWT, in-memory client-side only
+- Refresh tokens: httpOnly cookie, SHA-256 hash-stored server-side, rotated atomically on every use, revocable
+- Role-based authorization (`user`/`admin`), admin promotion manual (no self-serve endpoint)
+- OAuth (Google/GitHub) deferred
+
+### 2.3 Error handling model
+Custom exception hierarchy (`AppError` → `NotFoundError`, `UnauthorizedError`, `ForbiddenError`, `BusinessRuleError`, `ConflictError`), each mapped to the correct HTTP status by a global handler. Routes and services never construct `HTTPException` directly. `IntegrityError`, `RequestValidationError`, and unhandled exceptions all have dedicated global handlers with consistent client-facing error shapes.
+
+### 2.4 Data model backbone
+- `tmdb_id` is canonical for every movie; `movielens_id` is retained only for joining historical ratings
+- `poster_path` sentinel (`NULL` = unenriched, `""` = confirmed unmatched, real value = enriched) gates what's publicly visible
+- Seed users (`is_seed_user=true`) provide CF bootstrap data without being able to authenticate — enforced by the absence of a `user_credentials` row, not by weakening `NOT NULL` constraints
 
 ---
 
-## 4. Repo Structure (Monorepo)
+## 3. Database Schema
 
-```
-movie-app/
-├── apps/
-│   ├── web/                      # Next.js frontend
-│   │   ├── src/
-│   │   │   ├── app/               # routes (App Router)
-│   │   │   ├── components/
-│   │   │   ├── lib/                # api client, hooks
-│   │   │   └── types/
-│   │   ├── public/
-│   │   ├── Dockerfile
-│   │   └── package.json
-│   │
-│   ├── api/                      # Express core backend
-│   │   ├── src/
-│   │   │   ├── routes/             # movies, users, ratings, watchlist
-│   │   │   ├── controllers/
-│   │   │   ├── services/           # business logic
-│   │   │   ├── db/
-│   │   │   │   ├── models/          # or schema if using an ORM
-│   │   │   │   └── migrations/
-│   │   │   ├── middleware/         # auth, error handling
-│   │   │   ├── config/
-│   │   │   └── index.ts
-│   │   ├── tests/
-│   │   │   ├── unit/
-│   │   │   └── integration/
-│   │   ├── Dockerfile
-│   │   └── package.json
-│   │
-│   ├── ml-service/                # FastAPI recommendation service
-│   │   ├── app/
-│   │   │   ├── api/
-│   │   │   │   └── routes.py        # /recommendations/{user_id}
-│   │   │   ├── models/              # model loading/inference logic
-│   │   │   ├── schemas/             # Pydantic request/response models
-│   │   │   └── main.py
-│   │   ├── training/                # offline training scripts
-│   │   │   ├── train_cf.py           # collaborative filtering
-│   │   │   ├── train_content.py      # content-based
-│   │   │   ├── evaluate.py           # precision@k, NDCG etc.
-│   │   │   └── notebooks/            # exploration (not production code)
-│   │   ├── tests/
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   │
-│   └── worker/                    # BullMQ background jobs
-│       ├── src/
-│       │   ├── jobs/
-│       │   │   ├── syncTmdb.ts       # data pipeline job
-│       │   │   ├── scoreReleases.ts  # relevance scoring
-│       │   │   └── sendNotifications.ts
-│       │   ├── queues/
-│       │   └── index.ts
-│       ├── Dockerfile
-│       └── package.json
-│
-├── packages/                      # shared code across apps
-│   ├── shared-types/                # TS types shared between api/web/worker
-│   └── db-schema/                   # if sharing Prisma schema across services
-│
-├── data/                           # NOT committed except small samples
-│   ├── movielens/                   # raw MovieLens files
-│   └── links/                       # movieId <-> tmdbId mapping
-│
-├── scripts/                       # one-off / setup scripts
-│   ├── seed_db.ts
-│   └── etl_movielens.ts
-│
-├── infra/
-│   ├── docker-compose.yml           # local dev: all services + postgres + redis
-│   ├── k8s/
-│   │   ├── base/                     # Deployments, Services, ConfigMaps
-│   │   └── overlays/                 # dev/prod variants (kustomize)
-│   ├── helm/                        # if you go Helm instead of raw manifests
-│   └── terraform/                   # cloud provisioning (later milestone)
-│
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                    # lint, test, build on PR
-│       └── deploy.yml                # deploy on merge to main
-│
-├── docs/
-│   ├── architecture.md
-│   ├── api-spec.md
-│   └── decisions/                   # ADRs (architecture decision records)
-│
-└── README.md
-```
-
-**Notable structural decisions:**
-- `packages/shared-types` avoids duplicating TypeScript interfaces between `web` and `api`.
-- `docs/decisions/` holds short ADRs (architecture decision records) — one per major decision (~half a page each). Genuinely underused practice that reviewers notice.
-- Training scripts (`ml-service/training/`) are kept separate from serving code (`ml-service/app/`) — reflects the real production distinction between offline training and online inference.
+| Table | Purpose |
+|---|---|
+| `genres` | id, name, slug |
+| `movies` | canonical movie data — tmdb_id, metadata, enrichment sentinel |
+| `movie_genres` | pure junction |
+| `people` | cast/crew — schema built, no routes yet |
+| `movie_cast` | junction with role/billing — schema built, no routes yet |
+| `platforms` / `movie_platforms` | streaming availability — schema built, no routes yet |
+| `users` | identity only — email/username NOT NULL, role, is_seed_user |
+| `user_credentials` | optional 1:1 — absence = cannot log in |
+| `oauth_accounts` | deferred, not built |
+| `refresh_tokens` | hash-stored, revocable, rotated |
+| `ratings` | (user_id, movie_id) unique, 0.5–5.0 scale, upsert on re-rate |
+| `watchlist_items` | (user_id, movie_id) unique, status enum, watched_at set once |
 
 ---
 
-## 5. Tools, Skills & Topics Needed
-
-### Data & APIs
-- REST API consumption (TMDB API — auth, pagination, rate limits)
-- Data wrangling with pandas (joining MovieLens ↔ TMDB via `links.csv`)
-- ETL concepts (extract, transform, load; idempotent re-runnable jobs)
-- SQL (schema design, joins, indexing)
-
-### ML / Recommendation
-- Collaborative filtering (matrix factorization — ALS, SVD)
-- Content-based filtering (TF-IDF or embeddings on genres/keywords/cast)
-- Cold-start handling strategies
-- Evaluation metrics: precision@k, recall@k, NDCG, MAP
-- Libraries: `surprise` or `implicit` (CF), `scikit-learn`, `LightGBM` (ranking), optionally `sentence-transformers`
-- Two-stage recsys concept (candidate generation → ranking)
-- Experiment tracking (MLflow or Weights & Biases)
-
-### AI Automation (Notifications)
-- Job scheduling (cron, Celery beat, or k8s CronJobs)
-- LLM API usage (Anthropic/OpenAI SDK) — prompt engineering basics
-- Email/push delivery (SendGrid, Postmark, or Firebase Cloud Messaging)
-- Idempotency and dedup logic
+## 4. Tools & Skills
 
 ### Backend
-- Express (core API) — you already know this
-- REST/GraphQL API design
-- Authentication (JWT, OAuth)
-- Background task queues (BullMQ)
-- ORM (Prisma or similar)
-- Caching (Redis)
+FastAPI, SQLAlchemy, Alembic, Pydantic, pytest, JWT/passlib
 
-### Database
-- PostgreSQL schema design
-- Optional vector store (pgvector, Chroma, Pinecone) for content similarity
-- Database migrations
+### ML
+`scikit-surprise` (SVD collaborative filtering), pandas, precision@k/recall@k via sampled-negative evaluation (not naive test-set-only evaluation — see §6)
 
 ### Frontend
-- Next.js (SSR/ISR, routing, data fetching)
-- React Query / TanStack Query for server state
-- Tailwind CSS or a UI library
-- Auth flows, protected routes
+Next.js App Router, TypeScript, Tailwind v4, semantic design-token architecture
+
+### Data
+MovieLens `ml-20m`, TMDB API (rate-limit + retry + auth-failure handling)
 
 ### Testing
-- Unit testing (Vitest — already known)
-- Integration testing (API endpoints against test DB)
-- Mocking external APIs (TMDB)
-- Load testing (Locust or k6)
-- Coverage tooling (Codecov)
+pytest, FastAPI `TestClient`, dedicated transactional Postgres test database (not SQLite — schema relies on Postgres-native `Enum`/`ondelete=CASCADE` behavior)
 
-### DevOps
-- Docker + Docker Compose (multi-service)
-- CI/CD (GitHub Actions)
-- Kubernetes basics (Deployments, Services, Ingress, ConfigMaps, Secrets)
-- Helm charts
-- Observability: Prometheus, Grafana, structured logging, Loki
-- Secrets management
-- Infra as Code (Terraform)
-
-### General
-- Git workflow, PRs, conventional commits
-- OpenAPI/Swagger docs
-- System design thinking (caching, read/write patterns, scale)
-- README + architecture diagrams
+### Planned, not yet in use
+Redis (caching + BullMQ, once needed), MLflow (experiment tracking), Docker/Kubernetes, GitHub Actions, LLM API (notifications)
 
 ---
 
-## 6. Current Skill Baseline (as of starting this project)
+## 5. Milestone Plan
 
-**Already known — leverage, don't over-invest:**
-- FastAPI basics (built a mental health score predictor endpoint)
-- Express + Vitest (intermediate backend project experience)
-- Next.js + React (frontend)
-- Docker + EC2 deployment (single-container level)
+### Milestone 0 — Foundations ✅
+Repo structure, TMDB key, MovieLens download, Postgres setup, initial schema.
 
-**Genuinely new — where the real learning happens:**
-1. Real ML engineering (evaluation metrics, experiment tracking, cold-start, hybrid models) — biggest value jump
-2. Kubernetes / orchestration (vs. single-container EC2 deploys)
-3. Background job processing (Celery/BullMQ) — first time building scheduled/async pipelines
-4. CI/CD pipelines (GitHub Actions automation)
-5. Observability (Prometheus/Grafana)
-6. LLM API integration (programmatic use, not just chat)
+### Milestone 1 — Data Pipeline 🔄
+- [x] Idempotent MovieLens loader (`seed_movielens.py`)
+- [x] TMDB enrichment job (`enrich_tmdb.py`) with rate-limit/retry/auth-failure handling
+- [ ] MovieLens seed-user + seed-ratings bulk scripts (schema ready, scripts not written)
+- [ ] `people`/`platforms`/`movie_cast` routes
+- [x] ADR: movie-id strategy
 
-**Suggested warm-up before diving in:** a throwaway "hello world" Kubernetes deployment, and a toy recommender with proper evaluation — so Kubernetes and real ML aren't being learned *and* debugged in production code simultaneously.
+### Milestone 2 — Backend MVP ✅
+Auth, movies, genres, ratings, watchlist — full CRUD, admin-gated where appropriate, custom exception hierarchy, unit + integration test coverage.
 
----
+### Milestone 3 — Frontend MVP ✅
+Browse (search/filter/infinite scroll), detail page, auth flow, watchlist page, working rate/watchlist actions, full design system.
 
-## 7. Milestone Plan
+### Milestone 4 — Recommendation Engine v1 🔄
+- [x] Data exploration (sparsity, distribution analysis)
+- [x] Filtering decision (≥5 ratings/movie)
+- [x] SVD model trained, RMSE 0.786
+- [ ] Proper precision@k/recall@k via sampled-negative evaluation (in progress — naive test-set-only evaluation was misleading, corrected approach underway)
+- [ ] Wrap validated model as a FastAPI route
+- [ ] "Users with similar taste" surface shippable once this completes
 
-> Sequenced by dependency, not by time. A reasonable "v1 for resume" stopping point is after Milestone 6 (working product with ML + AI automation + frontend + backend). Milestones 7–10 push it from "good project" to "understands production systems."
+### Milestone 5 — Recommendation Engine v2 (hybrid + cold start)
+- [ ] Content-based filtering (genre/metadata similarity) → "Because you liked X"
+- [ ] Hybrid blend → "You may like"
+- [ ] Real (non-seed) new-user cold-start handling
+- [ ] MLflow experiment tracking
 
-### Milestone 0 — Foundations & Setup
-- Repo structure (monorepo), decide and document why
-- Get TMDB API key, explore endpoints, download MovieLens dataset
-- Set up Postgres locally via Docker Compose
-- Define initial DB schema: users, movies, ratings, watchlist
+### Milestone 6 — AI Automation (Notifications)
+Upcoming-release sync, relevance scoring, LLM-generated blurbs, delivery.
 
-### Milestone 1 — Data Pipeline
-1. **Get and understand the raw data** — download MovieLens (start with `ml-latest-small`), inspect `movies.csv`, `ratings.csv`, `tags.csv`, and critically `links.csv` (bridge to TMDB via `tmdbId`). Get TMDB API key and read current rate limits.
-2. **Design the database schema** — core tables: `movies`, `users`, `ratings`, `watchlist_items` (later `notifications`). `movies` holds both MovieLens fields and TMDB enrichment fields. Use `tmdb_id` as the canonical movie ID going forward; keep `movielens_id` purely for joining historical ratings. Write as versioned migration files, not manual `CREATE TABLE`.
-3. **Build the MovieLens loader** — script to bulk-insert CSVs into `movies`/`ratings`. Must be idempotent (upsert or check-before-insert) so re-running doesn't duplicate. Log counts (read/inserted/skipped).
-4. **Build the TMDB linking/enrichment job** — for each `tmdb_id`, call `/movie/{id}` to populate poster, overview, release date, genres. Handle missing/deprecated IDs gracefully (log to an "unmatched movies" table instead of crashing). Respect TMDB rate limits with batching/backoff.
-5. **Make the pipeline re-runnable and incremental** — only process new/changed data on re-run where possible. This pattern becomes the foundation for the Milestone 6 "sync upcoming releases" job.
-6. **Verify with real queries** — confirm a single query can return title + genres + poster + overview + release date + MovieLens rating stats. Spot-check a handful of TMDB ID matches manually.
-7. **Document it** — short ADR (`docs/decisions/001-movie-id-strategy.md`) explaining the `tmdb_id`-as-canonical decision and unmatched-movie handling.
+### Milestone 7 — Testing Hardening 🔄
+Core unit/integration coverage already exists ahead of schedule. Remaining: coverage-gap review, TMDB mocking in tests, load testing.
 
-**Definition of done:** one query returns a movie's title, genres, poster URL, overview, release date, and MovieLens rating stats.
-
-### Milestone 2 — Backend MVP (no ML yet)
-- Core API: list movies, movie detail, user auth, rate a movie, add to watchlist
-- Build in Express (leverages existing skill)
-- Write unit + integration tests as you go
-- Auto-generate API docs (Swagger)
-
-### Milestone 3 — Frontend MVP
-- Browse/search movies, movie detail page, rate, watchlist
-- Connect to backend API
-- Basic auth flow (login/signup)
-- Deploy an early working version for momentum
-
-### Milestone 4 — Recommendation Engine v1
-- Train collaborative filtering model on MovieLens (offline, notebook first)
-- Evaluate with precision@k / NDCG, log results
-- Wrap as its own FastAPI service: `/recommendations/{user_id}`
-- Integrate into frontend as a "Recommended for you" rail
-
-### Milestone 5 — Recommendation Engine v2 (Cold Start + Hybrid)
-- Add content-based scoring for new/unrated movies
-- Blend collaborative + content signals
-- Handle new users (no ratings yet) with a reasonable fallback
-- Track experiments in MLflow/W&B
-
-### Milestone 6 — AI Automation: Smart Notifications
-- Build "new/upcoming releases" sync job from TMDB
-- Score new releases against user taste profiles
-- Add relevance threshold logic (avoid spamming)
-- Integrate LLM call to generate personalized blurb ("Because you loved X, you might want...")
-- Wire up delivery (email via SendGrid, or in-app notification center first)
-
-### Milestone 7 — Testing Hardening
-- Fill gaps in unit/integration test coverage
-- Mock external APIs (TMDB) in tests
-- Load testing for recommendation and notification endpoints
-- Coverage reporting in CI
+### Milestone 7.5 — Adversarial Security Review *(new)*
+Deliberately attack the app before hardening it: auth/session attacks, IDOR/authorization bypass, injection, brute-force/rate-limiting (known current gap on `/auth/login`), CORS, error-message leakage, dependency audit. Findings feed directly into Milestone 8.
 
 ### Milestone 8 — Containerization & CI/CD
-- Dockerize every service
-- Docker Compose for full local stack
-- GitHub Actions pipeline: lint → test → build → push
+Dockerize, Docker Compose, GitHub Actions: lint → test → **security scan** → build → push.
 
 ### Milestone 9 — Kubernetes & Observability
-- Deploy full stack to local k3s/kind cluster, then real cloud cluster if possible
-- Write Helm charts
-- Add Prometheus + Grafana dashboards (API latency, job success/failure, recommendation service health)
-- Structured logging across services
+Local cluster deploy, Helm, Prometheus/Grafana, structured logging.
 
 ### Milestone 10 — Polish & Resume Packaging
-- Architecture diagram
-- Strong README (problem, architecture, tradeoffs, what you'd do at scale)
-- Demo video/GIF
-- Short technical blog post or case study
+Architecture diagram, README, demo video, technical write-up.
 
 ---
 
-## 8. Key Talking Points This Project Produces
+## 6. Key Methodological Notes Worth Preserving
 
-- System design: notification fan-out, caching hot movies, two-stage recsys
-- ML: cold start, offline evaluation, hybrid modeling, experiment tracking
-- DevOps: CI/CD, container orchestration, observability
-- Backend: API design, background job architecture, idempotent pipelines
-- Product thinking: relevance thresholds, avoiding notification fatigue, real external API constraints (TMDB rate limits, missing data)
+- **RMSE alone is insufficient for recommender evaluation.** A model can predict ratings accurately while still failing to surface good top-N recommendations. Precision@k/recall@k are required — but must be evaluated against a realistic candidate pool (sampled unrated negatives), not just the small held-out test slice of already-rated items, which understates real performance and answers the wrong question.
+- **Filtering decisions need validation, not assumption.** The ≥5-ratings-per-movie cutoff was chosen only after checking its actual impact on catalog size (68.6% of movies retained, 99.92% of ratings retained) — not applied blindly.
+- **Safety-motivated schema constraints and business requirements can conflict — resolve by finding the real mechanism, not by weakening the constraint.** The seed-user reversal (ADR 003) is the clearest example: the actual goal ("nobody can log in as an account they don't own") was preserved through a different mechanism (no credentials row) rather than by loosening `NOT NULL`.

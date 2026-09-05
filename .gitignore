@@ -21,3 +21,4 @@ data/ml-20m/
 # OS
 .DS_Store
 Thumbs.db
+apps/api/app/ml/models/*.pkl
