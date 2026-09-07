@@ -18,3 +18,12 @@ def get_similar_taste_recommendations(
         db, movielens_user_id, n=limit
     )
     return RecommendationResponse(is_personalized=is_personalized, recommendations=movies)
+
+
+@router.get("/popular", response_model=RecommendationResponse)
+def get_popular_movies(
+    limit : int = Query(10, ge=1, le=50),
+    db : Session = Depends(get_db)
+):
+    movies = recommendation_service.get_popular_movies(db, n=limit)
+    return RecommendationResponse(is_personalized=False, recommendations=movies)
