@@ -41,3 +41,4 @@ httpx
 scikit-surprise
 pandas
 matplotlib
+scikit-learn

@@ -27,3 +27,12 @@ def get_popular_movies(
 ):
     movies = recommendation_service.get_popular_movies(db, n=limit)
     return RecommendationResponse(is_personalized=False, recommendations=movies)
+
+@router.get("/because-you-liked/{movie_id}", response_model=RecommendationResponse)
+def get_similar_content_movies(
+    movie_id: int,
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    movies = recommendation_service.get_similar_movies(db, movie_id, n=limit)
+    return RecommendationResponse(is_personalized=bool(movies), recommendations=movies)
