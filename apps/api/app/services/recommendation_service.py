@@ -1,43 +1,100 @@
 from sqlalchemy.orm import Session
 from statistics import mean
 from functools import lru_cache
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from sqlalchemy.orm import joinedload
 from app.db.database import sessionLocal
 from app.core.exceptions import NotFoundError
 from app.db.models import Movie
 from app.ml.model_loader import get_cf_model
 from app.services.movie_service import attach_image_urls, _enriched_only
+import numpy as np
+import pickle
+from pathlib import Path
+from sentence_transformers import SentenceTransformer
 
-def _build_soup(movie: Movie) -> str:
-    genre_names = [g.name for g in movie.genres]
-    genre_text = " ".join(genre_names * 3)
-    overview_text = movie.description or ""
-    return f"{genre_text} {overview_text}".strip()
+_embedding_model = None
+
+CONTENT_CACHE_PATH = Path(__file__).resolve().parent.parent / "ml" / "models" / "content_matrix_cache.pkl"
+
+
+def _get_embedding_model() -> SentenceTransformer:
+    global _embedding_model
+    if _embedding_model is None:
+        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embedding_model
+
 
 @lru_cache(maxsize=1)
 def _get_content_matrix():
+    if CONTENT_CACHE_PATH.exists():
+        with open(CONTENT_CACHE_PATH, "rb") as f:
+            return pickle.load(f)
+
     db = sessionLocal()
     try:
         movies = (
             _enriched_only(db.query(Movie)).options(joinedload(Movie.genres)).all()
         )
 
-        soups = [_build_soup(m) for m in movies]
+        overviews = [m.description or "" for m in movies]
+        model = _get_embedding_model()
+        embeddings = model.encode(overviews, show_progress_bar=True, batch_size=64)
+        embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+
+        all_genre_names = sorted({g.name for m in movies for g in m.genres})
+        genre_index = {name: i for i, name in enumerate(all_genre_names)}
+        genre_matrix = np.zeros((len(movies), len(all_genre_names)))
+        for row, m in enumerate(movies):
+            for g in m.genres:
+                genre_matrix[row, genre_index[g.name]] = 1.0
+        genre_norms = np.linalg.norm(genre_matrix, axis=1, keepdims=True)
+        genre_norms[genre_norms == 0] = 1.0
+        genre_matrix = genre_matrix / genre_norms
+
         movie_ids = [m.id for m in movies]
+        id_to_index = {movie_id: idx for idx, movie_id in enumerate(movie_ids)}
 
-        vectorizer = TfidfVectorizer(stop_words="english")
-        matrix = vectorizer.fit_transform(soups)
+        result = (embeddings, genre_matrix, movie_ids, id_to_index)
 
-        id_to_idx = {
-            movie_id : idx for idx, movie_id in enumerate(movie_ids)
-        }
+        CONTENT_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(CONTENT_CACHE_PATH, "wb") as f:
+            pickle.dump(result, f)
 
-        return matrix, movie_ids, id_to_idx
-
+        return result
     finally:
         db.close()
+
+def get_similar_movies(
+    db: Session, movie_id: int, n: int = 10, semantic_weight: float = 0.6
+) -> list[Movie]:
+    movie_exists = db.query(Movie.id).filter(Movie.id == movie_id).first()
+    if not movie_exists:
+        raise NotFoundError("Movie not found")
+
+    embeddings, genre_matrix, movie_ids, id_to_idx = _get_content_matrix()
+
+    if movie_id not in id_to_idx:
+        return []
+
+    idx = id_to_idx[movie_id]
+
+    semantic_scores = embeddings @ embeddings[idx]
+    genre_scores = genre_matrix @ genre_matrix[idx]
+
+    genre_weight = 1.0 - semantic_weight
+    combined_scores = semantic_scores * semantic_weight + genre_weight * genre_scores
+
+    ranked_indices = combined_scores.argsort()[::-1]
+    top_indices = [i for i in ranked_indices if movie_ids[i] != movie_id][:n]
+    top_movie_ids = [movie_ids[i] for i in top_indices]
+
+    movies = _enriched_only(db.query(Movie)).filter(Movie.id.in_(top_movie_ids)).all()
+
+    score_by_id = {movie_ids[i]: combined_scores[i] for i in top_indices}
+    movies.sort(key=lambda m: score_by_id.get(m.id, 0), reverse=True)
+
+    return [attach_image_urls(m) for m in movies]
+
 
 def get_cf_recommendations(
     db: Session, movielens_user_id: int, n: int = 10
@@ -119,31 +176,4 @@ def get_popular_movies(
 
     top_movies = [attach_image_urls(movie) for movie, _ in scored[:n]]
     return top_movies
-
-
-def get_similar_movies(db: Session, movie_id: int, n:int = 10) ->list[Movie]:
-    movie_exists =  db.query(Movie.id).filter(Movie.id==movie_id).first()
-    if not movie_exists:
-        raise NotFoundError("Movie not found")
-
-    matrix, movie_ids, id_to_index = _get_content_matrix()
-
-    if movie_id not in id_to_index:
-        return []
-
-    idx = id_to_index[movie_id]
-
-    similarities = cosine_similarity(matrix[idx], matrix).flatten()
-
-    ranked_indices = similarities.argsort()[::-1]
-    top_indices = [i for i in ranked_indices if movie_ids[i] != movie_id][:n]
-    top_movie_ids = [movie_ids[i] for i in top_indices]
-
-    movies = _enriched_only(db.query(Movie)).filter(Movie.id.in_(top_movie_ids)).all()
-
-    similarity_by_id = {movie_ids[i]: similarities[i] for i in top_indices}
-    movies.sort(key=lambda m: similarity_by_id.get(m.id, 0), reverse=True)
-
-    return [attach_image_urls(m) for m in movies]
-
 

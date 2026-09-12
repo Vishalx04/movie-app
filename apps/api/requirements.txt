@@ -42,3 +42,4 @@ scikit-surprise
 pandas
 matplotlib
 scikit-learn
+sentence-transformers
