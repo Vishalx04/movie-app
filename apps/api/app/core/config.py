@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
 
     class Config:

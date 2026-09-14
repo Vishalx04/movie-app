@@ -43,3 +43,5 @@ pandas
 matplotlib
 scikit-learn
 sentence-transformers
+celery
+redis
