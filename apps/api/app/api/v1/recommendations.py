@@ -36,3 +36,14 @@ def get_similar_content_movies(
 ):
     movies = recommendation_service.get_similar_movies(db, movie_id, n=limit)
     return RecommendationResponse(is_personalized=bool(movies), recommendations=movies)
+
+@router.get("/for-you/{movielens_user_id}", response_model=RecommendationResponse)
+def get_hybrid_for_you_recommendations(
+    movielens_user_id: int,
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    is_personalized, movies = recommendation_service.get_hybrid_recommendations(
+        db, movielens_user_id, n=limit
+    )
+    return RecommendationResponse(is_personalized=is_personalized, recommendations=movies)

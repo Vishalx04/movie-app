@@ -177,3 +177,48 @@ def get_popular_movies(
     top_movies = [attach_image_urls(movie) for movie, _ in scored[:n]]
     return top_movies
 
+def get_hybrid_recommendations(
+    db: Session, movielens_user_id: int, n: int = 10, cf_weight: float = 0.5
+) -> tuple[bool, list[Movie]]:
+  
+    is_cf_personalized, cf_movies = get_cf_recommendations(db, movielens_user_id, n=n * 3)
+
+    if not is_cf_personalized or not cf_movies:
+        return False, []
+
+    embeddings, genre_matrix, movie_ids, id_to_index = _get_content_matrix()
+
+    model = get_cf_model()
+    trainset = model.trainset
+    inner_uid = trainset.to_inner_uid(movielens_user_id)
+    rated = trainset.ur[inner_uid]
+    if not rated:
+        return False, []
+
+    best_inner_iid, _ = max(rated, key=lambda x: x[1])
+    best_movielens_id = trainset.to_raw_iid(best_inner_iid)
+
+    anchor_movie = db.query(Movie).filter(Movie.movielens_id == best_movielens_id).first()
+    if not anchor_movie or anchor_movie.id not in id_to_index:
+        return True, cf_movies[:n]
+
+    anchor_idx = id_to_index[anchor_movie.id]
+    anchor_semantic = embeddings[anchor_idx]
+    anchor_genre = genre_matrix[anchor_idx]
+
+    def content_score(movie: Movie) -> float:
+        if movie.id not in id_to_index:
+            return 0.0
+        idx = id_to_index[movie.id]
+        semantic_sim = float(embeddings[idx] @ anchor_semantic)
+        genre_sim = float(genre_matrix[idx] @ anchor_genre)
+        return 0.6 * semantic_sim + 0.4 * genre_sim
+
+    scored = [
+        (movie, cf_weight * (1.0 - (rank / len(cf_movies))) + (1 - cf_weight) * content_score(movie))
+        for rank, movie in enumerate(cf_movies)
+    ]
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    top_movies = [movie for movie, _ in scored[:n]]
+    return True, top_movies
