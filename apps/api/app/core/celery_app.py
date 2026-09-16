@@ -14,8 +14,8 @@ celery_app.conf.beat_schedule = {
        "schedule" : 60*60*24
    },
    "enrich-new-movies-hourly": {
-     "task" : "app.tasks.enrichment.enrich_pending_movies",
-     "schedule": "60*60"  
+     "task" : "app.tasks.enrichment.enrich_pending_movies_task",
+     "schedule": 60*60
    },
 }
 
