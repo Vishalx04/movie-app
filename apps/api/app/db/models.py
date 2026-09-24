@@ -81,6 +81,8 @@ class Movie(Base):
     tmdb_vote_count = Column(Integer, nullable=True)
     trailer_link = Column(String(500), nullable=True)
 
+    notified_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, nullable=False, default=utcnow)
     updated_at = Column(
         DateTime, nullable=False, default=utcnow, onupdate=utcnow
@@ -300,3 +302,20 @@ class RefreshToken(Base):
     created_at = Column(DateTime, default=utcnow, nullable=False)
 
     user = relationship("User")
+
+class Notification(Base):
+    __tablename__  = "notifications"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    movie_id = Column(Integer, ForeignKey('movies.id', ondelete="CASCADE"), nullable=False)
+    message = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "movie_id", name="uq_user_movie_notification"),
+    )
+
+    user = relationship("User")
+    movie = relationship("Movie")

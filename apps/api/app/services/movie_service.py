@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session, joinedload
 from app.schemas.movie import MovieCreate
 from app.core.exceptions import NotFoundError
 import logging
+
 logger = logging.getLogger(__name__)
+
 
 def _build_image_url(path: str | None) -> str | None:
     if not path:
@@ -17,8 +19,10 @@ def attach_image_urls(movie: Movie):
     movie.poster_url = _build_image_url(movie.poster_path)
     return movie
 
+
 def _enriched_only(query):
     return query.filter(Movie.poster_path.isnot(None), Movie.poster_path != "")
+
 
 def get_all_movies(
     db: Session,
@@ -27,7 +31,9 @@ def get_all_movies(
     q: str | None = None,
     genre_id: int | None = None,
 ) -> list[Movie]:
-    logger.info("Fetching movies skip=%s limit=%s q=%s genre_id=%s", skip, limit, q, genre_id)
+    logger.info(
+        "Fetching movies skip=%s limit=%s q=%s genre_id=%s", skip, limit, q, genre_id
+    )
     query = _enriched_only(db.query(Movie))
     if q:
         query = query.filter(Movie.title.ilike(f"%{q}%"))
@@ -35,16 +41,14 @@ def get_all_movies(
     if genre_id:
         query = query.join(Movie.genres).filter(Genre.id == genre_id)
 
-    movies = query.offset(skip).limit(limit).all()
+    movies = query.order_by(Movie.created_at.desc()).offset(skip).limit(limit).all()
 
     return [attach_image_urls(m) for m in movies]
 
 
 def get_movie_by_id(db: Session, movie_id: int) -> Movie:
     query = _enriched_only(
-        db.query(Movie)
-        .options(joinedload(Movie.genres))
-        .filter(Movie.id == movie_id)
+        db.query(Movie).options(joinedload(Movie.genres)).filter(Movie.id == movie_id)
     )
     movie = query.first()
 
