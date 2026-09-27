@@ -5,7 +5,7 @@ celery_app = Celery(
     "movie_app",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.tasks.discovery", "app.tasks.enrichment"],
+    include=["app.tasks.discovery", "app.tasks.enrichment", "app.tasks.notifications"],
 )
 
 celery_app.conf.beat_schedule = {
@@ -17,6 +17,10 @@ celery_app.conf.beat_schedule = {
      "task" : "app.tasks.enrichment.enrich_pending_movies_task",
      "schedule": 60*60
    },
+   "generate-notifications-daily": {
+    "task": "app.tasks.notifications.generate_notifications",
+    "schedule": 60 * 60 * 24,
+},
 }
 
 celery_app.autodiscover_tasks(["app.tasks"])

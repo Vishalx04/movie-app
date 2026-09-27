@@ -18,7 +18,7 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    token = credentials.credentials  # <-- this line extracts the raw JWT string
+    token = credentials.credentials  
     payload = decode_access_token(token)
     if payload is None:
         raise credentials_exception

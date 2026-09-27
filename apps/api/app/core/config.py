@@ -31,6 +31,9 @@ class Settings(BaseSettings):
 
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
 
+    # OPENAI_API_KEY : str
+    GROQ_API_KEY: str
+
     class Config:
         env_file = ENV_FILE
         env_file_encoding = "utf-8"
