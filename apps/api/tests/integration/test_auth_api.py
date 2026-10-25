@@ -6,7 +6,7 @@ def test_signup_creates_user(client):
 
     assert response.status_code == 201
     assert response.json()["email"] == "new@example.com"
-    assert "password" not in response.json()  # never leak credentials in response
+    assert "password" not in response.json()  
 
 
 def test_signup_rejects_duplicate_email(client):
