@@ -3,16 +3,22 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Bell } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Logo } from "./Logo";
 import { Button } from "./Button";
+import NotificationsDropdown from "./NotificationsDropdown";
 
 export function Navbar() {
   const { user, isLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+
+  function handleNotificationDropdown() {
+    setNotificationOpen((prev) => !prev)
+  }
 
   async function handleLogout() {
     setMenuOpen(false);
@@ -21,10 +27,9 @@ export function Navbar() {
   }
 
   const navLinkClass = (href: string) =>
-    `relative font-sans text-sm transition-colors after:absolute after:left-0 after:-bottom-1 after:h-px after:bg-signal after:transition-all ${
-      pathname === href
-        ? "text-ink after:w-full"
-        : "text-ash hover:text-ink after:w-0 hover:after:w-full"
+    `relative font-sans text-sm transition-colors after:absolute after:left-0 after:-bottom-1 after:h-px after:bg-signal after:transition-all ${pathname === href
+      ? "text-ink after:w-full"
+      : "text-ash hover:text-ink after:w-0 hover:after:w-full"
     }`;
 
   return (
@@ -40,6 +45,27 @@ export function Navbar() {
             <div className="h-9 w-20 rounded-md skeleton" />
           ) : user ? (
             <>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={handleNotificationDropdown}
+                  className={`relative flex items-center justify-center h-9 w-9 rounded-md transition-colors ${
+                    notificationOpen
+                      ? "bg-ink/10 text-ink"
+                      : "text-ash hover:text-ink hover:bg-ink/5"
+                  }`}
+                  aria-label="Notifications"
+                  aria-expanded={notificationOpen}
+                >
+                  <Bell className="h-4.5 w-4.5" />
+                </button>
+                {notificationOpen && (
+                  <NotificationsDropdown
+                    onClose={() => setNotificationOpen(false)}
+                  />
+                )}
+              </div>
+
               <Link href="/watchlist" className={navLinkClass("/watchlist")}>
                 Watchlist
               </Link>
@@ -77,9 +103,8 @@ export function Navbar() {
 
       {/* Mobile menu */}
       <div
-        className={`sm:hidden overflow-hidden border-t border-ash/15 bg-paper transition-[max-height,opacity] duration-300 ease-out ${
-          menuOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
-        }`}
+        className={`sm:hidden overflow-hidden border-t border-ash/15 bg-paper transition-[max-height,opacity] duration-300 ease-out ${menuOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
+          }`}
       >
         <nav className="px-5 py-4 flex flex-col gap-4">
           {isLoading ? null : user ? (
