@@ -8,11 +8,8 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     APP_TITLE: str = "Movie app"
     APP_VERSION: str = "0.1.0"
-    SECRET_KEY: str
 
-    DATABASE_URL: str = (
-        "postgresql+psycopg2://postgres:postgres@localhost:5432/movie_db"
-    )
+    DATABASE_URL: str
 
     TEST_DATABASE_URL: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/movie_db_test"
 
@@ -37,7 +34,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ENV_FILE
         env_file_encoding = "utf-8"
-        class_sensitive = "True"
+        case_sensitive = True
 
 
 settings = Settings()

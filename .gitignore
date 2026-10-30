@@ -22,3 +22,7 @@ data/ml-20m/
 .DS_Store
 Thumbs.db
 apps/api/app/ml/models/*.pkl
+
+
+#Database backup
+*.sql
