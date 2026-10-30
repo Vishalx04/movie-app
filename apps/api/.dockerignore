@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+app/ml/models/*.pkl
+celerybeat-schedule*
+.pytest_cache/
+tests/
+.git/
+.DS_Store
+Thumbs.db
