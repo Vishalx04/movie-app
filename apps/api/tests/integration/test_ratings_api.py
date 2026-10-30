@@ -92,7 +92,7 @@ def test_delete_rating_removes_it(client, test_movie, auth_headers):
     }, headers= auth_headers)
 
     delete_response = client.delete(f"/api/v1/ratings/movie/{test_movie.id}", headers= auth_headers)
-    get_response = client.get(f"/api/ratings/movie/{test_movie.id}", headers= auth_headers)
+    get_response = client.get(f"/api/v1/ratings/movie/{test_movie.id}", headers= auth_headers)
 
     assert delete_response.status_code == 204
     assert get_response.status_code == 404

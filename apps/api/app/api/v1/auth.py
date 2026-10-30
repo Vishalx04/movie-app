@@ -16,12 +16,13 @@ REFRESH_COOKIE_PATH = "/api/v1/auth"
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
+    is_production = settings.APP_ENV!="development"
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=token,
         httponly=True,
         secure=settings.APP_ENV != "development",
-        samesite="lax",
+        samesite="none" if is_production else "lax",
         max_age=60 * 60 * 24 * settings.REFRESH_TOKEN_EXPIRE_DAYS,
         path=REFRESH_COOKIE_PATH,
     )
