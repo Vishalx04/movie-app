@@ -7,8 +7,11 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-#create a non root user
+# Create unprivileged user
 RUN useradd -m -u 1000 appuser
+
+# Install CPU-only PyTorch first (avoids downloading 4.5GB of CUDA packages)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
