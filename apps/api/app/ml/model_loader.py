@@ -7,6 +7,8 @@ _model_cache  = {"model": None, "mtime": None}
 
 
 def get_cf_model():
+    if not MODEL_PATH.exists():
+        return None
     mtime = MODEL_PATH.stat().st_mtime
     if _model_cache["model"] is None or _model_cache["mtime"]!=mtime:
         with open(MODEL_PATH, "rb") as f:

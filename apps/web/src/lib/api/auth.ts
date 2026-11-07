@@ -23,7 +23,7 @@ export const authApi = {
     },
     
     logout : ()=>{
-        apifetch<void>("/auth/logout", {
+        return apifetch<void>("/auth/logout", {
             method : "POST"
         })
     },

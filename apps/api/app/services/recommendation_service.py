@@ -100,6 +100,8 @@ def get_cf_recommendations(
     db: Session, movielens_user_id: int, n: int = 10
 ) -> tuple[bool, list[Movie]]:
     model = get_cf_model()
+    if model is None:
+        return False, []
 
     trainset = model.trainset
 
@@ -189,6 +191,8 @@ def get_hybrid_recommendations(
     embeddings, genre_matrix, movie_ids, id_to_index = _get_content_matrix()
 
     model = get_cf_model()
+    if model is None:
+        return False, []
     trainset = model.trainset
     inner_uid = trainset.to_inner_uid(movielens_user_id)
     rated = trainset.ur[inner_uid]
