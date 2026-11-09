@@ -14,6 +14,7 @@ This document is the complete, single source of truth for the deployment archite
 7. [Domain & Automated SSL Setup (Caddy Reverse Proxy)](#7-domain--automated-ssl-setup-caddy-reverse-proxy)
 8. [Automated CI/CD Pipeline Blueprint (GitHub Actions)](#8-automated-cicd-pipeline-blueprint-github-actions)
 9. [Operational Cheat Sheet & Maintenance](#9-operational-cheat-sheet--maintenance)
+10. [Quick Step-by-Step Deployment Runbook (TL;DR)](#10-quick-step-by-step-deployment-runbook-tldr)
 
 ---
 
@@ -32,10 +33,13 @@ This document is the complete, single source of truth for the deployment archite
        ┌─────────────────────────┐                                       ┌─────────────────────────┐
        │      Vercel Edge        │                                       │   AWS EC2 (us-east-2)   │
        │   Next.js 15 App        │                                       │   movie-app-backend     │
-       │ movie-app-nine-livid-45 │                                       │                         │
-       └─────────────────────────┘                                       │  ┌───────────────────┐  │
+       │ movie-app-nine-livid-45 │                                       │ (Elastic IP Attached)   │
+       └─────────────────────────┘                                       │                         │
+                                                                         │  ┌───────────────────┐  │
                                                                          │  │ Caddy / Port 443  │  │
-                                                                         │  │  (Auto TLS/SSL)   │  │
+                                                                         │  │ movie-api.        │  │
+                                                                         │  │ vishalx04.xyz     │  │
+                                                                         │  │ (Auto Let's Encrypt)│
                                                                          │  └─────────┬─────────┘  │
                                                                          │            │ :8000      │
                                                                          │  ┌─────────▼─────────┐  │
@@ -65,7 +69,8 @@ This document is the complete, single source of truth for the deployment archite
 | **Backend API** | FastAPI, Uvicorn, Python 3.11, Pydantic v2 | AWS EC2 `t3.small` (`us-east-2`) | REST API, Auth, Business Logic |
 | **Database** | PostgreSQL 16 | Neon Serverless (`us-east-2`) | Persistent data storage, Pooling |
 | **Cache / Broker** | Redis 7 | AWS EC2 (Dockerized) | Rate limiting, async task queue |
-| **Reverse Proxy** | Caddy v2 (or Nginx) | AWS EC2 (Native or Docker) | Automatic Let's Encrypt SSL, Proxy |
+| **Reverse Proxy** | Caddy v2 | AWS EC2 (Native systemd) | Automatic Let's Encrypt SSL, Proxy |
+| **Custom Domain** | `movie-api.vishalx04.xyz` | DNS A-Record → AWS Elastic IP | Clean, trusted HTTPS entry point |
 
 ---
 
@@ -186,15 +191,19 @@ services:
 ```
 
 ### 3.4 Production Code Fixes Applied
+- **Dynamic CORS Regex for Vercel Deployments (`apps/api/app/main.py`):**
+  Added `allow_origin_regex=r"^https:\/\/.*\.vercel\.app$"` to `CORSMiddleware`. This automatically permits any Vercel deployment URL (production, branch preview, PR preview) without needing to manually edit `.env` for every new URL hash.
 - **`apps/api/app/core/config.py`**:
   - Removed dead `SECRET_KEY` (auth exclusively uses `JWT_SECRET_KEY`).
   - Set `DATABASE_URL: str` as required with no default localhost fallback.
   - Set `case_sensitive = True` in Pydantic Config.
 - **`apps/api/app/api/v1/auth.py`**:
   - Refresh cookie configured with `secure=True` and `samesite="none"` when `APP_ENV != "development"` to allow secure cross-domain transmission from Vercel to EC2.
+- **`apps/web/src/lib/api/auth.ts`**:
+  - Updated `logout` function to explicitly `return apifetch<void>(...)`, ensuring promises are resolved before client session cleanup.
 - **`apps/api/migrations/env.py`**:
   - Alembic now dynamically reads `settings.DATABASE_URL` instead of relying on hardcoded localhost in `alembic.ini`.
-- **`apps/api/app/ml/model_loader.py`**:
+- **`apps/api/app/ml/model_loader.py` & `recommendation_service.py`**:
   - Gracefully checks `if not MODEL_PATH.exists(): return None` to prevent cold-start container crashes when large binary `.pkl` files are not present in git.
 
 ---
@@ -206,13 +215,13 @@ services:
 - **Instance Type:** `t3.small` (2 vCPU, 2.0 GiB RAM)
 - **AMI:** Ubuntu 24.04 LTS (Noble Numbat), 64-bit (x86_64)
 - **Region:** `us-east-2` (Ohio)
-- **Public IPv4:** `3.21.27.173`
+- **Elastic IP (Static IPv4):** Associated to `movie-app-backend` (`i-0c54c973323b7a9be`)
 
-### 4.2 Security Group Rules (`movie-app-sg`)
+### 4.2 Security Group Rules (`movie-app-sg` / `sg-0b3b13306275bde2c`)
 | Type | Protocol | Port Range | Source | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| SSH | TCP | 22 | Your IP / My IP | Secure server administration |
-| Custom TCP | TCP | 8000 | `0.0.0.0/0` | Direct backend API access (Dev/Staging) |
+| SSH | TCP | 22 | `0.0.0.0/0` (or Admin IP) | Secure server administration |
+| Custom TCP | TCP | 8000 | `0.0.0.0/0` | Direct backend API testing |
 | HTTP | TCP | 80 | `0.0.0.0/0` | Let's Encrypt ACME verification & HTTP redirect |
 | HTTPS | TCP | 443 | `0.0.0.0/0` | Secure SSL production API traffic |
 
@@ -228,7 +237,7 @@ sudo growpart /dev/nvme0n1 1 2>/dev/null || sudo growpart /dev/xvda 1 2>/dev/nul
 # Expand the ext4 filesystem online without reboot
 sudo resize2fs /dev/root 2>/dev/null || sudo resize2fs /dev/nvme0n1p1 2>/dev/null
 
-# Verify free space (should show ~17-18 GB available)
+# Verify free space (shows ~17-18 GB available)
 df -h /
 ```
 
@@ -290,10 +299,14 @@ TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p/original
 
 REDIS_URL=redis://redis:6379/0
 
+# Note: NEVER include trailing slashes in origins!
 ALLOWED_ORIGINS=["https://movie-app-nine-livid-45.vercel.app","http://localhost:3000"]
 
 GROQ_API_KEY=<your_groq_api_key>
 ```
+
+> [!WARNING]
+> **No Trailing Slashes in `ALLOWED_ORIGINS`:** Browser `Origin` headers never include trailing slashes. Setting `"https://your-app.vercel.app/"` (with `/`) will fail exact string matching and trigger a CORS error. Always omit the trailing slash.
 
 **Lock file permissions so only root/owner can read:**
 ```bash
@@ -317,9 +330,6 @@ docker compose up -d
 # Internal check on EC2
 curl http://localhost:8000/health
 # Output: {"database":"connected","status":"healthy"}
-
-# External check from developer machine or browser
-curl http://3.21.27.173:8000/health
 ```
 
 ---
@@ -328,7 +338,7 @@ curl http://3.21.27.173:8000/health
 
 ### 6.1 The Problem: Browser Mixed-Content Blocking
 - The frontend is served via Vercel at `https://movie-app-nine-livid-45.vercel.app` (Encrypted / HTTPS).
-- When the frontend calls `http://3.21.27.173:8000/api/v1/movies/`, web browsers enforce the **W3C Mixed Content Specification**:
+- When the frontend called `http://3.21.27.173:8000/api/v1/movies/`, web browsers enforced the **W3C Mixed Content Specification**:
   > *"An HTTPS page may not make asynchronous XMLHttpRequest or fetch requests to an insecure HTTP URL."*
 - The browser halts the request before sending any bytes over the network, displaying:
   `Status: (blocked:mixed-content)`
@@ -341,67 +351,65 @@ We tested a temporary Next.js rewrite proxy in `next.config.ts`. While it routed
 3. Obfuscation of real client IP addresses.
 4. Masking underlying network errors as 308 redirects.
 
-**Decision:** The rewrite was cleanly reverted. In production, web clients should communicate directly with the API over HTTPS.
+**Decision:** The rewrite was cleanly reverted. In production, web clients communicate directly with the API over HTTPS.
 
 ---
 
 ## 7. Domain & Automated SSL Setup (Caddy Reverse Proxy)
 
-This is the standard, production-grade solution.
+This is the standard, production-grade solution implemented for `movie-api.vishalx04.xyz`.
 
 ### Step 1: Assign an AWS Elastic IP (Static IPv4)
 AWS EC2 public IP addresses are dynamic and change if an instance is stopped and started.
 1. Go to **AWS Console → EC2 → Network & Security → Elastic IPs**.
 2. Click **Allocate Elastic IP address** (`us-east-2`).
 3. Select the allocated IP → **Actions → Associate Elastic IP address**.
-4. Choose Instance: `movie-app-backend` → Click **Associate**.
+4. Choose Instance: `movie-app-backend` (`i-0c54c973323b7a9be`) → Click **Associate**.
 *(AWS Free Tier includes 1 Elastic IP free of charge while associated with a running instance).*
 
 ### Step 2: Map Domain DNS
-Create an **A Record** at your DNS registrar (Namecheap, GoDaddy, Cloudflare, Route 53, or free DuckDNS):
+Create an **A Record** at your DNS registrar (Hostinger, Namecheap, Cloudflare, etc.):
 - **Type:** `A`
-- **Name / Host:** `api` (e.g., `api.yourdomain.com`) or `@` for apex domain.
+- **Name / Host:** `movie-api` (for `movie-api.vishalx04.xyz`)
 - **Value / Target:** Your EC2 Elastic IP address.
 - **TTL:** `300` (5 minutes).
 
-### Step 3: Install Caddy Reverse Proxy on EC2
-Caddy automatically provisions, verifies, and renews SSL certificates via Let's Encrypt with zero manual intervention:
+### Step 3: Install Caddy on EC2
+On Ubuntu 24.04 (Noble), Caddy is available directly from the standard repository:
 
 ```bash
-# Install Caddy on Ubuntu 24.04
-sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
-curl -1sLF 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLF 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
 sudo apt update
 sudo apt install -y caddy
 ```
 
 ### Step 4: Configure `/etc/caddy/Caddyfile`
-Edit the Caddyfile:
+Write the Caddy configuration in one command:
 ```bash
-sudo nano /etc/caddy/Caddyfile
-```
-
-Replace its contents with:
-```caddy
-api.yourdomain.com {
+sudo tee /etc/caddy/Caddyfile > /dev/null << 'EOF'
+movie-api.vishalx04.xyz {
     reverse_proxy localhost:8000
 }
+EOF
 ```
 
-Reload Caddy:
+Restart Caddy to apply changes and issue SSL certificates:
 ```bash
-sudo systemctl reload caddy
+sudo systemctl daemon-reload
+sudo systemctl restart caddy
 ```
 
 *Caddy automatically performs the ACME TLS handshake, requests the certificate from Let's Encrypt, binds Port 443, and forwards all requests to `http://localhost:8000`.*
 
+Verify in browser:
+👉 **`https://movie-api.vishalx04.xyz/health`**
+Returns: `{"database":"connected","status":"healthy"}` with a secure green padlock 🔒.
+
 ### Step 5: Update Vercel Environment Variable
 1. Open **Vercel Dashboard → movie-app project → Settings → Environment Variables**.
-2. Edit or add `NEXT_PUBLIC_API_URL`:
-   - **Value:** `https://api.yourdomain.com/api/v1`
+2. Set `NEXT_PUBLIC_API_URL`:
+   - **Value:** `https://movie-api.vishalx04.xyz/api/v1`
    - **Environments:** Production, Preview, Development.
-3. Trigger a redeploy: **Deployments → Select latest deployment → Redeploy**.
+3. Trigger a redeploy: **Deployments → Select latest deployment (`...`) → Redeploy**.
 
 ---
 
@@ -511,7 +519,19 @@ docker compose up -d --build api
 docker compose down
 ```
 
-### 9.2 Disk & Resource Monitoring
+### 9.2 Caddy Reverse Proxy Management
+```bash
+# Check Caddy service status
+sudo systemctl status caddy
+
+# View live Caddy access & SSL logs
+sudo journalctl -u caddy -f
+
+# Reload Caddy after editing Caddyfile
+sudo systemctl reload caddy
+```
+
+### 9.3 Disk & Resource Monitoring
 ```bash
 # Check disk usage
 df -h /
@@ -523,11 +543,44 @@ docker stats --no-stream
 docker system prune -f
 ```
 
-### 9.3 Database Migrations (Alembic)
+### 9.4 Database Migrations (Alembic)
 To run database schema migrations against Neon from the EC2 instance:
 ```bash
 docker exec -it movie-api alembic upgrade head
 ```
 
 ---
-*Document Version: 1.0.0 | Updated: November 2026*
+
+## 10. Quick Step-by-Step Deployment Runbook (TL;DR)
+
+This section provides the simple, linear checklist for deploying or reproducing the entire setup. For full explanations, refer to the sections linked beside each step.
+
+### Phase A: Database Setup
+1. **Create Neon Project:** Spin up a PostgreSQL 16 instance on [Neon](https://neon.tech) in `us-east-2` ([§2.1](#21-why-migrate)).
+2. **Dump Local Database:** Run `docker exec -t movie-postgres pg_dump ... > dump.sql` on your machine ([§2.2](#22-export-local-database-dump)).
+3. **Restore to Neon:** Run `docker run --rm ... psql ... -f /data/dump.sql` ([§2.3](#23-restore-dump-to-neon-cloud-database)).
+
+### Phase B: AWS EC2 Instance & Storage
+4. **Launch EC2:** `t3.small`, Ubuntu 24.04, `us-east-2` ([§4.1](#41-instance-details)).
+5. **Attach Elastic IP:** Allocate an Elastic IP and associate it with `movie-app-backend` ([§7 Step 1](#step-1-assign-an-aws-elastic-ip-static-ipv4)).
+6. **Configure Security Group:** Open Ports `22` (SSH), `80` (HTTP), `443` (HTTPS), and `8000` (API) ([§4.2](#42-security-group-rules-movie-app-sg--sg-0b3b13306275bde2c)).
+7. **Resize Volume (35 GB):** Modify volume in AWS Console, then run `sudo growpart /dev/nvme0n1 1` and `sudo resize2fs /dev/root` on EC2 ([§4.3](#43-ebs-volume-storage-expansion)).
+8. **Install Docker:** Install Docker Engine and Compose v2 on EC2 ([§4.4](#44-docker-engine-installation-ubuntu-2404)).
+
+### Phase C: Backend Application
+9. **Clone Repo:** `git clone https://github.com/Vishalx04/movie-app.git ~/movie-app` ([§5.1](#51-clone-codebase)).
+10. **Create `.env`:** Write `~/movie-app/apps/api/.env` with Neon `DATABASE_URL`, JWT secret, TMDB token, and `chmod 600` ([§5.2](#52-configure-environment-variables)).
+11. **Start Containers:** `cd ~/movie-app/infra && docker compose up -d --build` ([§5.3](#53-build--start-containers)).
+
+### Phase D: Domain, SSL & Reverse Proxy
+12. **Configure DNS:** Add DNS `A` Record pointing `movie-api.vishalx04.xyz` to your Elastic IP ([§7 Step 2](#step-2-map-domain-dns)).
+13. **Install Caddy:** `sudo apt install -y caddy` on EC2 ([§7 Step 3](#step-3-install-caddy-on-ec2)).
+14. **Configure Caddyfile:** Set `movie-api.vishalx04.xyz { reverse_proxy localhost:8000 }` and restart Caddy ([§7 Step 4](#step-4-configure-etccaddycaddyfile)).
+15. **Verify HTTPS:** Open `https://movie-api.vishalx04.xyz/health` in browser ([§7 Step 4](#step-4-configure-etccaddycaddyfile)).
+
+### Phase E: Frontend (Vercel)
+16. **Set Vercel Env:** Set `NEXT_PUBLIC_API_URL=https://movie-api.vishalx04.xyz/api/v1` in Vercel project settings ([§7 Step 5](#step-5-update-vercel-environment-variable)).
+17. **Redeploy:** Trigger a redeploy on Vercel and verify `https://<your-app>.vercel.app/movies` ([§7 Step 5](#step-5-update-vercel-environment-variable)).
+
+---
+*Document Version: 1.1.0 | Updated: November 2026*
